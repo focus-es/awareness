@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intuición · Awareness</title>
+<link rel="stylesheet" href="../../assets/awareness.css">
+</head>
+<body>
+<script src="../../assets/awareness.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // Parámetros por nivel: nº de cartas, atributos de la regla, duración de cada regla, aviso de cambio
+  const LEVELS = [
+    { cards: 3, dims: [1],    epoch: [5, 7], aviso: true,  rounds: 18 },
+    { cards: 4, dims: [1],    epoch: [5, 6], aviso: true,  rounds: 20 },
+    { cards: 4, dims: [2],    epoch: [5, 7], aviso: true,  rounds: 22 },
+    { cards: 4, dims: [1, 2], epoch: [4, 6], aviso: false, rounds: 24 },
+    { cards: 4, dims: [2, 3], epoch: [3, 5], aviso: false, rounds: 26 }
+  ];
+
+  const DIMS = ['forma', 'color', 'relleno', 'tamano'];
+  const VALS = {
+    forma: ['circulo', 'cuadrado', 'triangulo', 'rombo'],
+    color: ['#7fb4d9', '#9d8fd9', '#8fc9a8', '#d9c48f'],
+    relleno: ['solido', 'borde', 'rayas'],
+    tamano: ['grande', 'pequeno']
+  };
+
+  Awareness.start({
+    id: 'intuicion-patrones',
+    title: 'Intuición',
+    tagline: 'Una carta cumple una regla secreta. Nadie te la dirá: descúbrela con el feedback.',
+    instructions: 'En cada ronda aparecen varias cartas. Solo una es la "correcta" según una regla oculta ' +
+      '(puede depender de la forma, el color, el relleno o el tamaño… o de varias cosas a la vez). ' +
+      'Elige, observa si aciertas y ajusta tu intuición. La regla cambia cada cierto número de rondas; ' +
+      'en niveles altos cambia <b style="color:var(--warn)">sin avisar</b>.',
+    levelHints: [
+      '3 cartas, reglas de 1 atributo, con aviso de cambio',
+      '4 cartas, reglas de 1 atributo',
+      'Reglas dobles: dos atributos a la vez',
+      'Reglas de 1 o 2 atributos y cambios SIN aviso',
+      'Reglas de hasta 3 atributos, cambios frecuentes sin aviso'
+    ],
+    metricLabels: {
+      aciertos: 'Aciertos', precision: 'Precisión %',
+      reglas: 'Reglas descubiertas', rondas_pillar: 'Rondas hasta pillar (media)'
+    },
+    primaryMetric: 'precision',
+    game: {
+      start(ctx) {
+        const P = LEVELS[ctx.level - 1];
+        const st = ctx.stage;
+        st.innerHTML =
+          '<div style="position:absolute;inset:0;overflow:auto;display:flex">' +
+          '<div style="margin:auto;display:flex;flex-direction:column;align-items:center;gap:14px;padding:14px;width:100%">' +
+          '<div id="msg" style="color:var(--dim);font-size:.95rem;min-height:1.4em">¿Cuál es la carta correcta?</div>' +
+          '<div id="cards" style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;max-width:480px"></div>' +
+          '</div></div>';
+        const msg = st.querySelector('#msg');
+        const box = st.querySelector('#cards');
+
+        const timers = [];
+        const T = (fn, ms) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+        ctx.cleanup(() => timers.forEach(clearTimeout));
+
+        const pick = arr => arr[Math.floor(ctx.rng() * arr.length)];
+        const otherVal = (dim, v) => {
+          let x; do { x = pick(VALS[dim]); } while (x === v);
+          return x;
+        };
+        const randCard = () => {
+          const c = {};
+          DIMS.forEach(d => { c[d] = pick(VALS[d]); });
+          return c;
+        };
+        const matches = (c, rule) => Object.keys(rule).every(k => c[k] === rule[k]);
+        const sameCard = (a, b) => DIMS.every(d => a[d] === b[d]);
+
+        function makeRule(prev) {
+          for (let t = 0; t < 50; t++) {
+            const nd = pick(P.dims);
+            const ds = DIMS.slice().sort(() => ctx.rng() - 0.5).slice(0, nd);
+            const r = {};
+            ds.forEach(d => { r[d] = pick(VALS[d]); });
+            if (!prev || JSON.stringify(r) !== JSON.stringify(prev)) return r;
+          }
+          return { forma: pick(VALS.forma) };
+        }
+
+        function buildRound(rule) {
+          const target = randCard();
+          Object.keys(rule).forEach(k => { target[k] = rule[k]; });
+          const cards = [{ c: target, ok: true }];
+          let guard = 0;
+          while (cards.length < P.cards && guard++ < 300) {
+            let c;
+            const rk = Object.keys(rule);
+            if (cards.length === 1) {
+              // primer distractor: clon del objetivo con la regla rota
+              c = Object.assign({}, target);
+              const b = pick(rk);
+              c[b] = otherVal(b, c[b]);
+            } else {
+              c = randCard();
+              if (rk.length > 1 && ctx.rng() < 0.6) {
+                // coincidencia parcial: cumple casi toda la regla
+                rk.forEach(k => { c[k] = rule[k]; });
+                const b = pick(rk);
+                c[b] = otherVal(b, c[b]);
+              }
+            }
+            if (matches(c, rule)) continue;
+            if (cards.some(x => sameCard(x.c, c))) continue;
+            cards.push({ c: c, ok: false });
+          }
+          for (let i = cards.length - 1; i > 0; i--) {
+            const j = Math.floor(ctx.rng() * (i + 1));
+            const tmp = cards[i]; cards[i] = cards[j]; cards[j] = tmp;
+          }
+          return cards;
+        }
+
+        let PID = 0;
+        function cardSVG(c) {
+          const R = c.tamano === 'grande' ? 36 : 23;
+          const col = c.color;
+          let fill, stroke = '', defs = '';
+          if (c.relleno === 'solido') fill = col;
+          else if (c.relleno === 'borde') { fill = 'none'; stroke = ' stroke="' + col + '" stroke-width="6"'; }
+          else {
+            const id = 'pp' + (PID++);
+            defs = '<defs><pattern id="' + id + '" width="9" height="9" patternUnits="userSpaceOnUse" ' +
+              'patternTransform="rotate(45)"><rect width="4.5" height="9" fill="' + col + '"/></pattern></defs>';
+            fill = 'url(#' + id + ')';
+            stroke = ' stroke="' + col + '" stroke-width="2.5"';
+          }
+          let shp;
+          if (c.forma === 'circulo') {
+            shp = '<circle cx="50" cy="50" r="' + R + '" fill="' + fill + '"' + stroke + '/>';
+          } else if (c.forma === 'cuadrado') {
+            shp = '<rect x="' + (50 - R) + '" y="' + (50 - R) + '" width="' + 2 * R + '" height="' + 2 * R +
+              '" rx="7" fill="' + fill + '"' + stroke + '/>';
+          } else if (c.forma === 'triangulo') {
+            shp = '<polygon points="50,' + (50 - R) + ' ' + (50 + R) + ',' + (50 + R * 0.85) + ' ' +
+              (50 - R) + ',' + (50 + R * 0.85) + '" fill="' + fill + '"' + stroke + '/>';
+          } else {
+            shp = '<polygon points="50,' + (50 - R - 5) + ' ' + (50 + R) + ',50 50,' + (50 + R + 5) + ' ' +
+              (50 - R) + ',50" fill="' + fill + '"' + stroke + '/>';
+          }
+          return '<svg viewBox="0 0 100 100" width="84" height="84" style="display:block">' + defs + shp + '</svg>';
+        }
+
+        let round = 0, hits = 0, fails = 0, streak = 0, locked = false;
+        let rule = makeRule(null), epochRound = 0, discovered = false;
+        let epochLen = P.epoch[0] + Math.floor(ctx.rng() * (P.epoch[1] - P.epoch[0] + 1));
+        let rulesTotal = 1, rulesFound = 0;
+        const toDiscover = [];
+
+        const hud = () => ctx.hud.set({ Ronda: round + '/' + P.rounds, Aciertos: hits, Fallos: fails, Racha: streak });
+
+        function next() {
+          if (round >= P.rounds) return end();
+          round++; epochRound++;
+          let changed = false;
+          if (epochRound > epochLen) {
+            rule = makeRule(rule);
+            epochRound = 1; discovered = false; streak = 0;
+            epochLen = P.epoch[0] + Math.floor(ctx.rng() * (P.epoch[1] - P.epoch[0] + 1));
+            rulesTotal++;
+            changed = true;
+          }
+          locked = false;
+          hud();
+          msg.innerHTML = (changed && P.aviso)
+            ? '<b style="color:var(--warn)">✦ La regla acaba de cambiar</b>'
+            : '¿Cuál es la carta correcta?';
+          const cards = buildRound(rule);
+          box.innerHTML = '';
+          cards.forEach(o => {
+            const b = document.createElement('button');
+            b.className = 'aw-choice';
+            b.dataset.ok = o.ok ? '1' : '0';
+            b.style.cssText = 'padding:6px;min-width:96px;min-height:96px;display:flex;align-items:center;justify-content:center';
+            b.innerHTML = cardSVG(o.c);
+            b.onclick = () => choose(b, o.ok);
+            box.appendChild(b);
+          });
+        }
+
+        function choose(btn, ok) {
+          if (locked) return;
+          locked = true;
+          const btns = Array.prototype.slice.call(box.children);
+          btns.forEach(b => { b.disabled = true; });
+          if (ok) {
+            hits++; streak++;
+            btn.classList.add('ok');
+            st.classList.add('aw-flash-ok'); T(() => st.classList.remove('aw-flash-ok'), 380);
+            if (streak >= 3 && !discovered) {
+              discovered = true; rulesFound++;
+              toDiscover.push(Math.max(1, epochRound - 2));
+            }
+          } else {
+            fails++; streak = 0;
+            btn.classList.add('bad');
+            const good = btns.filter(b => b.dataset.ok === '1')[0];
+            if (good) good.classList.add('ok');
+            st.classList.add('aw-flash-bad'); T(() => st.classList.remove('aw-flash-bad'), 380);
+          }
+          hud();
+          T(next, ok ? 700 : 1200);
+        }
+
+        function end() {
+          const total = hits + fails;
+          const media = toDiscover.length
+            ? Math.round(10 * toDiscover.reduce((a, b) => a + b, 0) / toDiscover.length) / 10
+            : 0;
+          ctx.finish({
+            aciertos: hits,
+            precision: total ? Math.round(100 * hits / total) : 0,
+            reglas: rulesFound + '/' + rulesTotal,
+            rondas_pillar: media
+          });
+        }
+
+        hud();
+        next();
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
