@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ecos del bosque · Awareness</title>
+<link rel="stylesheet" href="../../assets/awareness.css">
+</head>
+<body>
+<script src="../../assets/awareness.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // Parámetros por nivel: diferencia inicial %, mínimo, duración de tono, pausa, 3 opciones, ensayos
+  const LEVELS = [
+    { start: 12,  min: .4,  dur: .70, gap: .45, three: false, igualP: 0,   trials: 20 },
+    { start: 8,   min: .3,  dur: .55, gap: .40, three: false, igualP: 0,   trials: 22 },
+    { start: 6,   min: .25, dur: .45, gap: .35, three: true,  igualP: .25, trials: 24 },
+    { start: 4.5, min: .2,  dur: .36, gap: .30, three: true,  igualP: .25, trials: 26 },
+    { start: 3.5, min: .15, dur: .28, gap: .28, three: true,  igualP: .3,  trials: 28 }
+  ];
+
+  Awareness.start({
+    id: 'ecos-del-bosque',
+    title: 'Ecos del bosque',
+    tagline: 'Escucha dos ecos y di si el segundo era más agudo o más grave.',
+    instructions: 'Sonarán <b>dos tonos suaves</b>, uno tras otro. Tu tarea: decir si el segundo era ' +
+      '<b style="color:var(--accent)">más agudo</b> o <b style="color:var(--accent2)">más grave</b> que el primero ' +
+      '(en niveles altos también puede ser <b>igual</b>). El juego se adapta a tu oído: cuando aciertas, la diferencia ' +
+      'se vuelve más pequeña; cuando fallas, se agranda. Así entrena justo en tu frontera. ' +
+      '<b>Usa auriculares</b> en un lugar tranquilo.',
+    levelHints: [
+      'Diferencias amplias y tonos largos',
+      'Diferencias menores',
+      'Aparece la opción "igual": no te fíes',
+      'Tonos breves, oído fino',
+      'Ecos fugaces al borde de lo audible'
+    ],
+    metricLabels: {
+      umbral_pct: 'Umbral final (% dif.)', agudeza: 'Agudeza (0–100)', aciertos: 'Aciertos',
+      ensayos: 'Ensayos', mejora_pct: 'Afinación en sesión %', precision: 'Precisión %'
+    },
+    primaryMetric: 'agudeza',
+    game: {
+      start(ctx) {
+        const P = LEVELS[ctx.level - 1];
+        const st = ctx.stage;
+        let audio = null, timers = [];
+        const T = (fn, ms) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+        ctx.cleanup(() => {
+          timers.forEach(clearTimeout);
+          if (audio) { try { audio.close(); } catch (e) {} audio = null; }
+        });
+
+        // ---- estado de la escalera 2-aciertos-baja / 1-fallo-sube ----
+        let d = P.start, streak = 0, lastMove = 0;
+        const reversals = [];
+        let trial = 0, hits = 0, repeatLeft = 0;
+        let f1 = 0, f2 = 0, isEqual = false, goesUp = false, answered = true;
+
+        const hud = () => ctx.hud.set({
+          Ensayo: Math.min(trial, P.trials) + '/' + P.trials,
+          Aciertos: hits,
+          Diferencia: d.toFixed(1) + '%',
+          Racha: streak
+        });
+
+        // ---- interfaz ----
+        st.innerHTML =
+          '<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:14px;text-align:center">' +
+          '<div id="orbs" style="display:flex;gap:34px">' +
+          '<svg width="84" height="84" viewBox="0 0 84 84"><circle id="o1" cx="42" cy="42" r="26" fill="var(--accent)" opacity=".25"/><circle cx="42" cy="42" r="33" fill="none" stroke="var(--border)"/></svg>' +
+          '<svg width="84" height="84" viewBox="0 0 84 84"><circle id="o2" cx="42" cy="42" r="26" fill="var(--accent2)" opacity=".25"/><circle cx="42" cy="42" r="33" fill="none" stroke="var(--border)"/></svg>' +
+          '</div>' +
+          '<div id="msg" style="color:var(--dim);min-height:2.4em;max-width:460px">Ponte los auriculares y pulsa para empezar.</div>' +
+          '<div id="btns" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"></div>' +
+          '</div>';
+        const o1 = st.querySelector('#o1'), o2 = st.querySelector('#o2');
+        const msg = st.querySelector('#msg');
+        const btns = st.querySelector('#btns');
+
+        const button = (label, cls) => {
+          const b = document.createElement('button');
+          b.className = 'aw-btn ' + (cls || '');
+          b.style.minHeight = '54px'; b.style.minWidth = '128px';
+          b.innerHTML = label;
+          btns.appendChild(b);
+          return b;
+        };
+
+        const glow = (orb, on) => { orb.setAttribute('opacity', on ? '.95' : '.25'); };
+
+        // ---- audio: timbre suave de "bosque" (seno + armónico tenue, ataque y caída lentos) ----
+        const playTone = (freq, when, dur) => {
+          const g = audio.createGain();
+          g.gain.setValueAtTime(0.0001, when);
+          g.gain.linearRampToValueAtTime(.22, when + .05);
+          g.gain.setValueAtTime(.22, when + dur);
+          g.gain.exponentialRampToValueAtTime(.0001, when + dur + .3);
+          g.connect(audio.destination);
+          const mk = (f, vol) => {
+            const o = audio.createOscillator();
+            o.type = 'sine'; o.frequency.value = f;
+            const og = audio.createGain(); og.gain.value = vol;
+            o.connect(og); og.connect(g);
+            o.start(when); o.stop(when + dur + .4);
+          };
+          mk(freq, 1);
+          mk(freq * 2, .14);
+          mk(freq * 2.76, .05);
+        };
+
+        const playPair = () => {
+          const t0 = audio.currentTime + .12;
+          playTone(f1, t0, P.dur);
+          playTone(f2, t0 + P.dur + P.gap, P.dur);
+          const ms1 = 120, ms2 = 120 + (P.dur + P.gap) * 1000;
+          glow(o1, false); glow(o2, false);
+          T(() => glow(o1, true), ms1);
+          T(() => glow(o1, false), ms1 + P.dur * 1000);
+          T(() => glow(o2, true), ms2);
+          T(() => glow(o2, false), ms2 + P.dur * 1000);
+          return ms2 + P.dur * 1000;
+        };
+
+        const nextTrial = () => {
+          if (trial >= P.trials) return end();
+          trial++; hud();
+          repeatLeft = 1;
+          f1 = 200 + ctx.rng() * 260;
+          isEqual = P.three && ctx.rng() < P.igualP;
+          goesUp = ctx.rng() < .5;
+          f2 = isEqual ? f1 : f1 * (1 + (goesUp ? d : -d) / 100);
+          answered = false;
+          btns.innerHTML = '';
+          msg.textContent = 'Escucha…';
+          const ready = playPair();
+          T(showChoices, ready + 150);
+        };
+
+        const showChoices = () => {
+          msg.textContent = '¿Cómo era el segundo eco?';
+          btns.innerHTML = '';
+          const bDown = button('▼ Más grave', 'sec');
+          let bEq = null;
+          if (P.three) bEq = button('= Igual', 'sec');
+          const bUp = button('▲ Más agudo', 'sec');
+          const bRep = button('↻ Repetir', 'sec');
+          bRep.style.minWidth = '90px';
+          bRep.onclick = () => {
+            if (!repeatLeft || answered) return;
+            repeatLeft--; bRep.disabled = true;
+            msg.textContent = 'Otra vez…';
+            const ready = playPair();
+            T(() => { if (!answered) msg.textContent = '¿Cómo era el segundo eco?'; }, ready + 100);
+          };
+          const respond = (ans) => { // 'up' | 'down' | 'eq'
+            if (answered) return;
+            answered = true;
+            const correct = isEqual ? ans === 'eq' : (goesUp ? ans === 'up' : ans === 'down');
+            if (correct) hits++;
+            // escalera: solo los ensayos con diferencia real la mueven
+            if (!isEqual) {
+              if (correct) {
+                streak++;
+                if (streak >= 2) {
+                  streak = 0;
+                  d = Math.max(P.min, d * .72);
+                  if (lastMove === 1) reversals.push(d);
+                  lastMove = -1;
+                }
+              } else {
+                streak = 0;
+                d = Math.min(P.start * 1.8, d * 1.45);
+                if (lastMove === -1) reversals.push(d);
+                lastMove = 1;
+              }
+            } else {
+              streak = 0;
+            }
+            hud();
+            st.classList.add(correct ? 'aw-flash-ok' : 'aw-flash-bad');
+            T(() => st.classList.remove(correct ? 'aw-flash-ok' : 'aw-flash-bad'), 380);
+            msg.textContent = correct
+              ? '✓ Correcto.'
+              : '✗ Era ' + (isEqual ? 'igual' : (goesUp ? 'más agudo' : 'más grave')) + '.';
+            btns.innerHTML = '';
+            T(nextTrial, 1000);
+          };
+          bDown.onclick = () => respond('down');
+          bUp.onclick = () => respond('up');
+          if (bEq) bEq.onclick = () => respond('eq');
+        };
+
+        const end = () => {
+          let threshold;
+          if (reversals.length >= 4) {
+            const last = reversals.slice(-6);
+            threshold = last.reduce((a, b) => a + b, 0) / last.length;
+          } else {
+            threshold = d;
+          }
+          const umbral = Math.round(threshold * 10) / 10;
+          ctx.finish({
+            umbral_pct: umbral,
+            agudeza: Math.max(0, Math.round(100 - umbral * 9)),
+            aciertos: hits,
+            ensayos: trial,
+            mejora_pct: Math.max(0, Math.round(100 * (P.start - threshold) / P.start)),
+            precision: trial ? Math.round(100 * hits / trial) : 0
+          });
+        };
+
+        // ---- arranque: el audio requiere un gesto del usuario ----
+        hud();
+        const bGo = button('🔊 Activar sonido', '');
+        bGo.onclick = () => {
+          try {
+            audio = new (window.AudioContext || window.webkitAudioContext)();
+            if (audio.state === 'suspended') audio.resume();
+          } catch (e) {
+            msg.textContent = 'Tu navegador no permite el audio: ' + e.message;
+            return;
+          }
+          btns.innerHTML = '';
+          msg.textContent = 'Bien. Empezamos…';
+          playTone(330, audio.currentTime + .05, .25);
+          T(nextTrial, 1100);
+        };
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
