@@ -1,0 +1,92 @@
+/* Awareness · sistema de diseño común para módulos */
+:root{
+  --bg:#0e1420; --bg2:#141c2c; --card:#1a2436; --card2:#202c42;
+  --text:#dde6f2; --dim:#8fa1b8; --accent:#7fb4d9; --accent2:#9d8fd9;
+  --ok:#8fc9a8; --bad:#d98f8f; --warn:#d9c48f; --border:#2a3a54;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  background:radial-gradient(ellipse at 50% -20%, #1b2840 0%, var(--bg) 60%);
+  color:var(--text); font-family:'Segoe UI',system-ui,sans-serif;
+  min-height:100vh; line-height:1.5;
+  display:flex; flex-direction:column;
+}
+.aw-shell{flex:1; display:flex; flex-direction:column; max-width:860px; width:100%; margin:0 auto; padding:14px 14px 20px}
+
+/* Barra superior */
+.aw-top{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 2px 12px}
+.aw-back{color:var(--dim); text-decoration:none; font-size:.9rem; padding:8px 10px; border-radius:10px}
+.aw-back:hover{color:var(--accent)}
+.aw-title{font-size:1.05rem; font-weight:500; letter-spacing:.05em; color:var(--accent); text-align:center}
+.aw-lvl-chip{font-size:.8rem; color:var(--dim); border:1px solid var(--border); border-radius:20px; padding:3px 12px; white-space:nowrap}
+
+/* Pantallas */
+.aw-screen{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:18px; padding:10px}
+.aw-screen h1{font-size:1.7rem; font-weight:300; letter-spacing:.06em}
+.aw-tagline{color:var(--dim); font-size:1.02rem; max-width:520px}
+.aw-instr{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px 20px; color:var(--text); font-size:.98rem; max-width:560px}
+
+/* Selector de nivel */
+.aw-levels{display:flex; gap:10px; flex-wrap:wrap; justify-content:center}
+.aw-level{
+  width:52px; height:52px; border-radius:14px; border:1px solid var(--border);
+  background:var(--card); color:var(--text); font-size:1.1rem; cursor:pointer;
+  transition:all .15s; display:flex; align-items:center; justify-content:center;
+}
+.aw-level:hover{border-color:var(--accent)}
+.aw-level.sel{background:var(--accent); color:#0e1420; border-color:var(--accent); font-weight:600}
+.aw-level-hint{color:var(--dim); font-size:.85rem; min-height:1.3em}
+
+/* Botones */
+.aw-btn{
+  background:var(--accent); color:#0e1420; border:none; border-radius:14px;
+  padding:14px 34px; font-size:1.05rem; font-weight:600; cursor:pointer;
+  transition:transform .15s, filter .15s; touch-action:manipulation;
+}
+.aw-btn:hover{transform:translateY(-2px); filter:brightness(1.1)}
+.aw-btn.sec{background:var(--card); color:var(--text); border:1px solid var(--border)}
+.aw-btn.sec:hover{border-color:var(--accent)}
+.aw-btn:disabled{opacity:.45; cursor:default; transform:none}
+.aw-actions{display:flex; gap:12px; flex-wrap:wrap; justify-content:center}
+
+/* HUD */
+.aw-hud{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; padding:8px 0}
+.aw-stat{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:6px 14px; font-size:.88rem; color:var(--dim)}
+.aw-stat b{color:var(--text); font-weight:600}
+
+/* Área de juego */
+.aw-stage{
+  flex:1; position:relative; background:var(--bg2); border:1px solid var(--border);
+  border-radius:18px; overflow:hidden; min-height:300px; touch-action:manipulation;
+  user-select:none; -webkit-user-select:none;
+}
+
+/* Resultados */
+.aw-results{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; width:100%; max-width:560px}
+.aw-res{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px}
+.aw-res .v{font-size:1.5rem; font-weight:600; color:var(--accent)}
+.aw-res .k{font-size:.8rem; color:var(--dim); margin-top:2px}
+.aw-best{color:var(--ok); font-size:.9rem}
+.aw-feedback{font-size:1.05rem; color:var(--dim); max-width:520px}
+
+/* Utilidades de juego */
+.aw-flash-ok{animation:awok .4s}
+.aw-flash-bad{animation:awbad .4s}
+@keyframes awok{0%{box-shadow:inset 0 0 0 3px var(--ok)}100%{box-shadow:none}}
+@keyframes awbad{0%{box-shadow:inset 0 0 0 3px var(--bad)}100%{box-shadow:none}}
+.aw-big-target{min-width:64px; min-height:64px}
+.aw-choice{
+  background:var(--card); border:1px solid var(--border); border-radius:14px;
+  padding:16px 20px; font-size:1rem; color:var(--text); cursor:pointer; transition:all .15s;
+}
+.aw-choice:hover{border-color:var(--accent); background:var(--card2)}
+.aw-choice.ok{border-color:var(--ok); background:#1c3328}
+.aw-choice.bad{border-color:var(--bad); background:#33201c}
+.aw-countdown{font-size:3.4rem; font-weight:200; color:var(--accent)}
+
+@media(max-width:600px){
+  .aw-screen h1{font-size:1.35rem}
+  .aw-btn{padding:13px 26px; font-size:1rem}
+  .aw-stage{min-height:260px}
+}
