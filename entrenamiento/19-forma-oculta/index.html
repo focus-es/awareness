@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>La forma oculta · Awareness</title>
+<link rel="stylesheet" href="../../assets/awareness.css">
+</head>
+<body>
+<script src="../../assets/awareness.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // Parámetros por nivel: opciones, duración del recorrido sonoro, repeticiones, parecido entre siluetas
+  const LEVELS = [
+    { opts: 3, dur: 3.5, reps: 2, rounds: 8,  pool: 'distinct' },
+    { opts: 4, dur: 3.0, reps: 2, rounds: 8,  pool: 'distinct' },
+    { opts: 4, dur: 2.6, reps: 2, rounds: 10, pool: 'similar'  },
+    { opts: 4, dur: 2.2, reps: 1, rounds: 10, pool: 'similar'  },
+    { opts: 4, dur: 1.8, reps: 0, rounds: 12, pool: 'similar'  }
+  ];
+
+  // Perfiles de altura: x de 0 a 1 (izquierda→derecha = paneo), y de 0 a 1 (grave→agudo)
+  function arc(up) {
+    const p = [];
+    for (let i = 0; i <= 16; i++) {
+      const x = i / 16, y = 0.16 + 0.68 * Math.sin(Math.PI * x);
+      p.push([x, up ? y : 1 - y]);
+    }
+    return p;
+  }
+  function wave() {
+    const p = [];
+    for (let i = 0; i <= 24; i++) {
+      const x = i / 24;
+      p.push([x, 0.5 + 0.34 * Math.sin(x * Math.PI * 3)]);
+    }
+    return p;
+  }
+  const SHAPES = {
+    montana:  { pts: [[0, .15], [.5, .85], [1, .15]],                          sim: ['colina', 'meseta', 'sierra'] },
+    valle:    { pts: [[0, .85], [.5, .15], [1, .85]],                          sim: ['cuenco', 'w', 'onda'] },
+    meseta:   { pts: [[0, .15], [.3, .8], [.7, .8], [1, .15]],                 sim: ['montana', 'colina', 'escalera'] },
+    colina:   { pts: arc(true),                                                sim: ['montana', 'meseta', 'onda'] },
+    cuenco:   { pts: arc(false),                                               sim: ['valle', 'w', 'onda'] },
+    onda:     { pts: wave(),                                                   sim: ['m', 'colina', 'sierra'] },
+    m:        { pts: [[0, .2], [.25, .85], [.5, .38], [.75, .85], [1, .2]],    sim: ['w', 'sierra', 'onda'] },
+    w:        { pts: [[0, .85], [.25, .2], [.5, .65], [.75, .2], [1, .85]],    sim: ['m', 'valle', 'cuenco'] },
+    escalera: { pts: [[0, .18], [.32, .18], [.34, .5], [.65, .5], [.67, .84], [1, .84]], sim: ['rampa', 'sierra', 'meseta'] },
+    rampa:    { pts: [[0, .15], [1, .85]],                                     sim: ['escalera', 'colina', 'montana'] },
+    plano:    { pts: [[0, .5], [1, .5]],                                       sim: ['rampa', 'cuenco', 'meseta'] },
+    sierra:   { pts: [[0, .15], [.5, .85], [.52, .15], [1, .85]],              sim: ['m', 'escalera', 'onda'] }
+  };
+  const DISTINCT = ['montana', 'valle', 'plano', 'rampa', 'onda', 'escalera', 'colina'];
+
+  function interp(pts, x) {
+    if (x <= pts[0][0]) return pts[0][1];
+    for (let i = 1; i < pts.length; i++) {
+      if (x <= pts[i][0]) {
+        const a = pts[i - 1], b = pts[i], dx = b[0] - a[0];
+        if (dx < 1e-6) return b[1];
+        return a[1] + (b[1] - a[1]) * (x - a[0]) / dx;
+      }
+    }
+    return pts[pts.length - 1][1];
+  }
+
+  function shapeSVG(name, w) {
+    const pts = SHAPES[name].pts;
+    const str = pts.map(p => (4 + p[0] * 92).toFixed(1) + ',' + (6 + (1 - p[1]) * 52).toFixed(1)).join(' ');
+    return '<svg viewBox="0 0 100 64" width="' + w + '" height="' + Math.round(w * 0.64) + '" style="display:block">' +
+      '<line x1="4" y1="60" x2="96" y2="60" stroke="var(--border)" stroke-width="1.5"/>' +
+      '<polyline points="' + str + '" fill="none" stroke="var(--accent)" stroke-width="4" ' +
+      'stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+
+  Awareness.start({
+    id: 'forma-oculta',
+    title: 'La forma oculta',
+    tagline: 'Un sonido dibuja una silueta en el aire: agudo = arriba, paneo = izquierda/derecha.',
+    instructions: 'Un tono recorre una forma invisible de izquierda a derecha: lo agudo es lo alto, lo grave es lo bajo, ' +
+      'y el sonido viaja de tu oído izquierdo al derecho. Escucha y elige la silueta que ha dibujado. ' +
+      '<b style="color:var(--warn)">Usa auriculares</b> para percibir el paneo estéreo.',
+    levelHints: [
+      'Formas muy distintas, recorrido lento, 2 repeticiones',
+      'Cuatro opciones, recorrido algo más rápido',
+      'Siluetas parecidas entre sí',
+      'Recorrido breve y una sola repetición',
+      'Muy breve, siluetas casi gemelas y sin repetición'
+    ],
+    metricLabels: {
+      aciertos: 'Aciertos', fallos: 'Fallos',
+      repeticiones: 'Repeticiones usadas', precision: 'Precisión %'
+    },
+    primaryMetric: 'precision',
+    game: {
+      start(ctx) {
+        const P = LEVELS[ctx.level - 1];
+        const st = ctx.stage;
+
+        let AC = null, master = null;
+        const timers = [];
+        const T = (fn, ms) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+        ctx.cleanup(() => timers.forEach(clearTimeout));
+        ctx.cleanup(() => { try { if (AC) AC.close(); } catch (e) {} });
+
+        let round = 0, hits = 0, fails = 0, repsUsed = 0;
+        let repsLeft = 0, correct = null, lastCorrect = null, locked = true, playing = false;
+
+        const hud = () => ctx.hud.set({ Ronda: round + '/' + P.rounds, Aciertos: hits, Fallos: fails });
+
+        function playShape(name, onEnd) {
+          const pts = SHAPES[name].pts;
+          const t0 = AC.currentTime + 0.08;
+          const dur = P.dur;
+          const osc = AC.createOscillator();
+          osc.type = 'sine';
+          const g = AC.createGain();
+          let pan = null;
+          if (AC.createStereoPanner) {
+            pan = AC.createStereoPanner();
+            osc.connect(g); g.connect(pan); pan.connect(master);
+          } else {
+            osc.connect(g); g.connect(master);
+          }
+          g.gain.setValueAtTime(0, t0);
+          g.gain.linearRampToValueAtTime(0.8, t0 + 0.05);
+          g.gain.setValueAtTime(0.8, t0 + dur - 0.07);
+          g.gain.linearRampToValueAtTime(0, t0 + dur);
+          const steps = 64;
+          for (let i = 0; i <= steps; i++) {
+            const x = i / steps;
+            const f = 200 * Math.pow(2, interp(pts, x) * 2); // 200–800 Hz
+            const tt = t0 + x * dur;
+            if (i === 0) {
+              osc.frequency.setValueAtTime(f, tt);
+              if (pan) pan.pan.setValueAtTime(x * 2 - 1, tt);
+            } else {
+              osc.frequency.linearRampToValueAtTime(f, tt);
+              if (pan) pan.pan.linearRampToValueAtTime(x * 2 - 1, tt);
+            }
+          }
+          osc.start(t0);
+          osc.stop(t0 + dur + 0.05);
+          T(onEnd, (dur + 0.25) * 1000);
+        }
+
+        function intro() {
+          st.innerHTML =
+            '<div style="position:absolute;inset:0;overflow:auto;display:flex">' +
+            '<div style="margin:auto;display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px;max-width:420px;text-align:center">' +
+            '<div style="font-size:2rem">🎧</div>' +
+            '<div style="color:var(--dim);font-size:.95rem">Ponte auriculares: el sonido viaja de izquierda a derecha mientras sube y baja como la silueta.</div>' +
+            '<button class="aw-btn" id="act">Activar sonido</button>' +
+            '</div></div>';
+          st.querySelector('#act').onclick = () => {
+            const Ctor = window.AudioContext || window.webkitAudioContext;
+            if (!Ctor) {
+              st.querySelector('#act').outerHTML =
+                '<div style="color:var(--bad)">Tu navegador no soporta WebAudio.</div>';
+              return;
+            }
+            AC = new Ctor();
+            if (AC.resume) AC.resume();
+            master = AC.createGain();
+            master.gain.value = 0.3;
+            master.connect(AC.destination);
+            buildBoard();
+            next();
+          };
+        }
+
+        let msg, box, playBtn;
+        function buildBoard() {
+          st.innerHTML =
+            '<div style="position:absolute;inset:0;overflow:auto;display:flex">' +
+            '<div style="margin:auto;display:flex;flex-direction:column;align-items:center;gap:13px;padding:14px;width:100%">' +
+            '<div id="msg" style="color:var(--dim);font-size:.95rem;min-height:1.4em"></div>' +
+            '<button class="aw-btn sec" id="play" style="padding:11px 22px;font-size:.95rem"></button>' +
+            '<div id="opts" style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;max-width:480px"></div>' +
+            '</div></div>';
+          msg = st.querySelector('#msg');
+          box = st.querySelector('#opts');
+          playBtn = st.querySelector('#play');
+          playBtn.onclick = onPlay;
+        }
+
+        function buildOpts() {
+          const poolAll = P.pool === 'similar' ? Object.keys(SHAPES) : DISTINCT;
+          let c;
+          do { c = poolAll[Math.floor(ctx.rng() * poolAll.length)]; } while (c === lastCorrect);
+          lastCorrect = c;
+          const list = [c];
+          if (P.pool === 'similar') {
+            const sims = SHAPES[c].sim.slice().sort(() => ctx.rng() - 0.5);
+            while (list.length < P.opts && sims.length) {
+              const s = sims.shift();
+              if (list.indexOf(s) < 0) list.push(s);
+            }
+          }
+          let guard = 0;
+          while (list.length < P.opts && guard++ < 60) {
+            const s = poolAll[Math.floor(ctx.rng() * poolAll.length)];
+            if (list.indexOf(s) < 0) list.push(s);
+          }
+          for (let i = list.length - 1; i > 0; i--) {
+            const j = Math.floor(ctx.rng() * (i + 1));
+            const tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+          }
+          return { correct: c, list: list };
+        }
+
+        function next() {
+          if (round >= P.rounds) return end();
+          round++; hud();
+          locked = true; playing = false;
+          repsLeft = P.reps;
+          const R = buildOpts();
+          correct = R.correct;
+          msg.textContent = 'Pulsa para escuchar la forma';
+          playBtn.disabled = false;
+          playBtn.textContent = '▶ Escuchar forma';
+          playBtn.dataset.first = '1';
+          box.innerHTML = '';
+          R.list.forEach(name => {
+            const b = document.createElement('button');
+            b.className = 'aw-choice';
+            b.dataset.name = name;
+            b.style.cssText = 'padding:8px;min-width:118px;min-height:84px;display:flex;align-items:center;justify-content:center;opacity:.45';
+            b.disabled = true;
+            b.innerHTML = shapeSVG(name, 104);
+            b.onclick = () => choose(b, name);
+            box.appendChild(b);
+          });
+        }
+
+        function onPlay() {
+          if (playing) return;
+          const first = playBtn.dataset.first === '1';
+          if (!first) {
+            if (repsLeft <= 0) return;
+            repsLeft--; repsUsed++;
+          }
+          playing = true;
+          playBtn.disabled = true;
+          msg.textContent = 'Escucha…';
+          playShape(correct, () => {
+            playing = false;
+            if (first) {
+              playBtn.dataset.first = '0';
+              locked = false;
+              Array.prototype.forEach.call(box.children, b => {
+                b.disabled = false; b.style.opacity = '1';
+              });
+            }
+            msg.textContent = '¿Qué silueta ha dibujado el sonido?';
+            if (repsLeft > 0) {
+              playBtn.disabled = false;
+              playBtn.textContent = '↻ Repetir forma (' + repsLeft + ')';
+            } else {
+              playBtn.disabled = true;
+              playBtn.textContent = 'Sin repeticiones';
+            }
+          });
+        }
+
+        function choose(btn, name) {
+          if (locked || playing) return;
+          locked = true;
+          playBtn.disabled = true;
+          const btns = Array.prototype.slice.call(box.children);
+          btns.forEach(b => { b.disabled = true; });
+          if (name === correct) {
+            hits++;
+            btn.classList.add('ok');
+            st.classList.add('aw-flash-ok'); T(() => st.classList.remove('aw-flash-ok'), 380);
+          } else {
+            fails++;
+            btn.classList.add('bad');
+            const good = btns.filter(b => b.dataset.name === correct)[0];
+            if (good) good.classList.add('ok');
+            st.classList.add('aw-flash-bad'); T(() => st.classList.remove('aw-flash-bad'), 380);
+          }
+          hud();
+          T(next, name === correct ? 850 : 1400);
+        }
+
+        function end() {
+          const total = hits + fails;
+          ctx.finish({
+            aciertos: hits, fallos: fails, repeticiones: repsUsed,
+            precision: total ? Math.round(100 * hits / total) : 0
+          });
+        }
+
+        hud();
+        intro();
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
