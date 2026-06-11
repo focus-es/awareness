@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>El camino que desaparece · Awareness</title>
+<link rel="stylesheet" href="../../assets/awareness.css">
+</head>
+<body>
+<script src="../../assets/awareness.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // Parámetros por nivel: cuadrícula, longitud inicial, demora antes de reproducir, velocidad, inverso
+  const LEVELS = [
+    { grid: 4, len: 4, delay: 0,    speed: 650, rounds: 6, reverse: false },
+    { grid: 5, len: 5, delay: 0,    speed: 550, rounds: 6, reverse: false },
+    { grid: 6, len: 6, delay: 2000, speed: 480, rounds: 7, reverse: false },
+    { grid: 6, len: 7, delay: 3000, speed: 430, rounds: 7, reverse: false },
+    { grid: 7, len: 7, delay: 4000, speed: 400, rounds: 7, reverse: true }
+  ];
+  const MAX_LEN = 12;
+
+  function genPath(n, len, rng) {
+    for (let tries = 0; tries < 80; tries++) {
+      let x = Math.floor(rng() * n), y = Math.floor(rng() * n);
+      const path = [[x, y]], used = new Set([x + ',' + y]);
+      while (path.length < len) {
+        const opts = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]
+          .filter(p => p[0] >= 0 && p[0] < n && p[1] >= 0 && p[1] < n && !used.has(p[0] + ',' + p[1]));
+        if (!opts.length) break;
+        const p = opts[Math.floor(rng() * opts.length)];
+        x = p[0]; y = p[1];
+        used.add(x + ',' + y); path.push(p);
+      }
+      if (path.length === len) return path;
+    }
+    return null;
+  }
+
+  Awareness.start({
+    id: 'camino-que-desaparece',
+    title: 'El camino que desaparece',
+    tagline: 'Memoriza el camino que se ilumina y reprodúcelo tocando las celdas en orden.',
+    instructions: 'Un camino se enciende celda a celda y luego desaparece. Tócalo en el mismo orden. ' +
+      'Si aciertas, el siguiente camino será un paso más largo. En niveles altos hay una espera antes de responder, ' +
+      'y en el nivel 5 deberás reproducirlo <b style="color:var(--warn)">en orden inverso</b>.',
+    levelHints: [
+      'Cuadrícula 4×4, caminos cortos',
+      'Cuadrícula 5×5, un poco más rápido',
+      'Cuadrícula 6×6 y 2 s de espera en blanco',
+      'Más largo, más rápido, 3 s de espera',
+      'Cuadrícula 7×7, 4 s de espera y orden INVERSO'
+    ],
+    metricLabels: {
+      pasos_correctos: 'Pasos correctos', longitud_max: 'Longitud máxima',
+      errores: 'Errores', precision: 'Precisión %'
+    },
+    primaryMetric: 'longitud_max',
+    game: {
+      start(ctx) {
+        const P = LEVELS[ctx.level - 1];
+        const n = P.grid;
+        const st = ctx.stage;
+        st.innerHTML =
+          '<div style="position:absolute;inset:0;overflow:auto;display:flex">' +
+          '<div style="margin:auto;display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px;width:100%">' +
+          '<div id="msg" style="color:var(--dim);font-size:.95rem;min-height:1.4em"></div>' +
+          '<div id="grid" style="display:grid;gap:6px;width:min(100%,420px);grid-template-columns:repeat(' + n + ',1fr)"></div>' +
+          '</div></div>';
+        const msg = st.querySelector('#msg');
+        const grid = st.querySelector('#grid');
+
+        const cells = [];
+        for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+          const d = document.createElement('div');
+          d.style.cssText = 'aspect-ratio:1;border-radius:10px;background:var(--card);' +
+            'border:1px solid var(--border);cursor:pointer;transition:background .2s,box-shadow .2s';
+          d.dataset.x = x; d.dataset.y = y;
+          d.addEventListener('pointerdown', () => tap(x, y, d));
+          grid.appendChild(d);
+          cells.push(d);
+        }
+        const cellAt = (x, y) => cells[y * n + x];
+
+        let round = 0, len = P.len, steps = 0, errors = 0, maxLen = 0;
+        let phase = 'idle', expected = [], idx = 0, path = [];
+        const timers = [];
+        const T = (fn, ms) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+        ctx.cleanup(() => timers.forEach(clearTimeout));
+
+        const hud = () => ctx.hud.set({
+          Ronda: round + '/' + P.rounds, Longitud: len, Pasos: steps, Errores: errors
+        });
+
+        function lit(el, color) {
+          if (color) {
+            el.style.background = color;
+            el.style.boxShadow = '0 0 16px ' + color;
+            el.style.borderColor = color;
+          } else {
+            el.style.background = 'var(--card)';
+            el.style.boxShadow = 'none';
+            el.style.borderColor = 'var(--border)';
+          }
+        }
+        const clearAll = () => cells.forEach(c => lit(c, null));
+
+        function nextRound() {
+          if (round >= P.rounds) return end();
+          round++;
+          phase = 'show';
+          clearAll();
+          hud();
+          // generar camino (si la cuadrícula no da para tanto, acortar)
+          let L = Math.min(len, MAX_LEN);
+          path = null;
+          while (!path && L >= 3) { path = genPath(n, L, ctx.rng); if (!path) L--; }
+          len = L;
+          hud();
+          msg.textContent = 'Memoriza el camino…';
+          path.forEach((p, i) => {
+            T(() => lit(cellAt(p[0], p[1]), 'var(--accent)'), 400 + i * P.speed);
+            T(() => lit(cellAt(p[0], p[1]), null), 400 + i * P.speed + Math.round(P.speed * 0.85));
+          });
+          T(afterShow, 400 + path.length * P.speed + 150);
+        }
+
+        function afterShow() {
+          if (P.delay > 0) {
+            phase = 'wait';
+            let left = Math.round(P.delay / 1000);
+            msg.textContent = 'Espera… ' + left;
+            const iv = setInterval(() => {
+              left--;
+              if (left > 0) msg.textContent = 'Espera… ' + left;
+            }, 1000);
+            timers.push(iv);
+            ctx.cleanup(() => clearInterval(iv));
+            T(() => { clearInterval(iv); startInput(); }, P.delay);
+          } else {
+            startInput();
+          }
+        }
+
+        function startInput() {
+          phase = 'input';
+          idx = 0;
+          expected = P.reverse ? path.slice().reverse() : path.slice();
+          msg.innerHTML = P.reverse
+            ? 'Reproduce el camino en orden <b style="color:var(--warn)">INVERSO</b>'
+            : 'Reproduce el camino';
+        }
+
+        function tap(x, y, el) {
+          if (phase !== 'input') return;
+          const e = expected[idx];
+          if (x === e[0] && y === e[1]) {
+            steps++; idx++;
+            lit(el, 'var(--ok)');
+            hud();
+            if (idx >= expected.length) {
+              phase = 'done';
+              maxLen = Math.max(maxLen, len);
+              msg.textContent = '¡Camino completo!';
+              st.classList.add('aw-flash-ok'); T(() => st.classList.remove('aw-flash-ok'), 380);
+              len = Math.min(MAX_LEN, len + 1);
+              T(nextRound, 1000);
+            }
+          } else {
+            phase = 'done';
+            errors++;
+            hud();
+            lit(el, 'var(--bad)');
+            st.classList.add('aw-flash-bad'); T(() => st.classList.remove('aw-flash-bad'), 380);
+            msg.textContent = 'Este era el camino';
+            expected.slice(idx).forEach(p => lit(cellAt(p[0], p[1]), 'var(--warn)'));
+            len = Math.max(3, len - 1);
+            T(nextRound, 1700);
+          }
+        }
+
+        function end() {
+          const total = steps + errors;
+          ctx.finish({
+            pasos_correctos: steps,
+            longitud_max: maxLen,
+            errores: errors,
+            precision: total ? Math.round(100 * steps / total) : 0
+          });
+        }
+
+        hud();
+        msg.textContent = 'Prepárate…';
+        T(nextRound, 1100);
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
