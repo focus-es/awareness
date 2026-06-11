@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Awareness · Entrenamiento perceptivo</title>
+<style>
+  :root{
+    --bg:#0e1420; --bg2:#141c2c; --card:#1a2436; --card2:#202c42;
+    --text:#dde6f2; --dim:#8fa1b8; --accent:#7fb4d9; --accent2:#9d8fd9;
+    --green:#8fc9a8; --border:#2a3a54;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    background:radial-gradient(ellipse at 50% -20%, #1b2840 0%, var(--bg) 60%);
+    color:var(--text); font-family:'Segoe UI',system-ui,sans-serif;
+    min-height:100vh; line-height:1.55;
+  }
+  .wrap{max-width:980px;margin:0 auto;padding:48px 20px 80px}
+  header{text-align:center;margin-bottom:44px}
+  h1{font-size:2.4rem;font-weight:300;letter-spacing:.35em;color:var(--accent);text-transform:uppercase}
+  .tagline{color:var(--dim);margin-top:10px;font-size:1.05rem}
+  .saludo{text-align:center;font-size:1.4rem;font-weight:300;margin:32px 0 26px;color:var(--text)}
+  .caminos{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:10px}
+  @media(max-width:700px){.caminos{grid-template-columns:1fr}}
+  .camino{
+    display:block;background:linear-gradient(160deg,var(--card),var(--card2));
+    border:1px solid var(--border);border-radius:18px;padding:30px 26px;
+    text-decoration:none;color:var(--text);transition:transform .25s,border-color .25s;
+  }
+  .camino:hover{transform:translateY(-4px);border-color:var(--accent)}
+  .camino .icono{font-size:2rem;margin-bottom:12px;display:block}
+  .camino h2{font-size:1.25rem;font-weight:500;margin-bottom:8px}
+  .camino p{color:var(--dim);font-size:.95rem}
+  .camino .dur{display:inline-block;margin-top:14px;font-size:.8rem;color:var(--accent);
+    border:1px solid var(--border);border-radius:20px;padding:3px 12px}
+  section{margin-top:52px}
+  .sec-title{font-size:1.15rem;font-weight:500;color:var(--accent);margin-bottom:6px;
+    letter-spacing:.08em;text-transform:uppercase}
+  .sec-sub{color:var(--dim);font-size:.92rem;margin-bottom:22px}
+  .sesiones{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-bottom:8px}
+  .sesion{
+    background:var(--card);border:1px solid var(--border);border-radius:16px;
+    padding:20px;text-decoration:none;color:var(--text);transition:border-color .2s, transform .2s;
+  }
+  .sesion:hover{border-color:var(--accent);transform:translateY(-3px)}
+  .sesion h3{font-size:1.05rem;font-weight:500;margin-bottom:6px;color:var(--text)}
+  .sesion p{color:var(--dim);font-size:.86rem}
+  .sesion .ruta{margin-top:10px;font-size:.78rem;color:var(--accent)}
+  .bloque{margin-bottom:28px}
+  .bloque h3{font-size:.95rem;color:var(--accent2);font-weight:500;margin-bottom:12px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+  .mod{
+    background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:14px 16px;text-decoration:none;color:var(--text);font-size:.92rem;
+    transition:border-color .2s,background .2s;
+  }
+  .mod:hover{border-color:var(--accent);background:var(--card2)}
+  .mod small{display:block;color:var(--dim);font-size:.78rem;margin-top:4px}
+  .nota{margin-top:56px;text-align:center;color:var(--dim);font-size:.82rem}
+  .fase{display:inline-block;background:var(--card);border:1px solid var(--border);
+    border-radius:20px;padding:4px 14px;font-size:.78rem;color:var(--dim);margin-top:10px}
+  .audio-tag{color:var(--accent2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Awareness</h1>
+    <div class="tagline">Entrenamiento perceptivo, atencional y de intuición</div>
+    <div class="fase">v3 · sesiones guiadas + progresión</div>
+    <nav style="margin-top:14px;display:flex;gap:18px;justify-content:center">
+      <a href="perfil.html" style="color:var(--accent);text-decoration:none;font-size:.9rem">◔ Mi progreso</a>
+      <a href="cuenta.html" style="color:var(--dim);text-decoration:none;font-size:.9rem">⊙ Cuenta</a>
+    </nav>
+  </header>
+
+  <div class="saludo">Hola. ¿Qué quieres hacer hoy?</div>
+
+  <div class="caminos">
+    <a class="camino" href="#entrenar">
+      <span class="icono">◎</span>
+      <h2>Entrenar</h2>
+      <p>Sesiones guiadas de 4 prácticas: espacio mental, escucha o atención. Cada una termina en calma.</p>
+      <span class="dur">12–15 min</span>
+    </a>
+    <a class="camino" href="#intuicion">
+      <span class="icono">✦</span>
+      <h2>Explorar intuición</h2>
+      <p>El Orbe y la visión remota. Baja el ritmo, escucha la primera señal.</p>
+      <span class="dur">20–30 min</span>
+    </a>
+  </div>
+
+  <section id="entrenar">
+    <div class="sec-title">Sesiones guiadas</div>
+    <div class="sec-sub">Elige un recorrido: el sistema encadena las prácticas y te da el resumen al final.</div>
+    <div class="sesiones">
+      <a class="sesion" href="sesion.html?s=visual">
+        <h3>◫ Espacio mental</h3>
+        <p>Retener, rotar y recorrer imágenes por dentro.</p>
+        <div class="ruta">Fotografía mental → Rotación → Camino → Latido</div>
+      </a>
+      <a class="sesion" href="sesion.html?s=audio">
+        <h3>♫ Escucha <span class="audio-tag">· auriculares</span></h3>
+        <p>Percibir el espacio y las formas solo con el oído.</p>
+        <div class="ruta">Espacio → Ecos → Forma oculta → Eco de los sentidos</div>
+      </a>
+      <a class="sesion" href="sesion.html?s=atencion">
+        <h3>◉ Atención y control</h3>
+        <p>Frenar el impulso, ver el detalle, dejar venir la intuición.</p>
+        <div class="ruta">Go/No-Go → Cambio → Intuición → Latido</div>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-title">Práctica libre</div>
+    <div class="sec-sub">Los 12 módulos sueltos. Empiezas en nivel 1 y desbloqueas el siguiente rindiendo bien (75+ dos veces).</div>
+
+    <div class="bloque">
+      <h3>Espacio mental y memoria visual</h3>
+      <div class="grid">
+        <a class="mod" href="entrenamiento/08-memoria-visual/index.html">La fotografía mental<small>imagen 5 s → preguntas de detalle</small></a>
+        <a class="mod" href="entrenamiento/10-rotacion-mental/index.html">Rotación mental<small>gira la forma por dentro</small></a>
+        <a class="mod" href="entrenamiento/11-camino-que-desaparece/index.html">El camino que desaparece<small>recorre el mapa interno</small></a>
+        <a class="mod" href="entrenamiento/06-encuentra-el-cambio/index.html">Encuentra el cambio<small>diferencias casi invisibles</small></a>
+      </div>
+    </div>
+
+    <div class="bloque">
+      <h3>Escucha <span class="audio-tag">· con auriculares</span></h3>
+      <div class="grid">
+        <a class="mod" href="entrenamiento/03-escucha-el-espacio/index.html">Escucha el espacio<small>localiza solo con el oído</small></a>
+        <a class="mod" href="entrenamiento/09-ecos-del-bosque/index.html">Ecos del bosque<small>tu umbral auditivo personal</small></a>
+        <a class="mod" href="entrenamiento/19-forma-oculta/index.html">La forma oculta<small>oye la silueta, dibújala dentro</small></a>
+        <a class="mod" href="entrenamiento/17-guardian-invisible/index.html">El Guardián Invisible<small>presencia solo audible</small></a>
+      </div>
+    </div>
+
+    <div class="bloque">
+      <h3>Atención, control e intuición</h3>
+      <div class="grid">
+        <a class="mod" href="entrenamiento/04-go-no-go/index.html">Go / No-Go<small>no todo merece reacción</small></a>
+        <a class="mod" href="entrenamiento/12-intuicion-patrones/index.html">Intuición<small>patrones antes de pensarlos</small></a>
+        <a class="mod" href="entrenamiento/18-eco-de-los-sentidos/index.html">El eco de los sentidos<small>siente qué transmite</small></a>
+        <a class="mod" href="entrenamiento/15-latido-oculto/index.html">El latido oculto<small>sincronízate con lo sutil</small></a>
+      </div>
+    </div>
+  </section>
+
+  <section id="intuicion">
+    <div class="sec-title">Intuición</div>
+    <div class="sec-sub">Prácticas de visión intuitiva. En la fase 3 el Orbe se convertirá en tu guía con resultados medibles.</div>
+    <div class="grid">
+      <a class="mod" href="intuicion/esencia.html">✦ Conectar con la esencia<small>código → pizarra → elige entre 2 · medible</small></a>
+      <a class="mod" href="intuicion/orbe.html">✦ El Orbe<small>visión intuitiva guiada</small></a>
+      <a class="mod" href="intuicion/vision-remota.html">✦ Visión remota<small>describe lo que no ves</small></a>
+    </div>
+  </section>
+
+  <div class="nota">
+    Awareness · plataforma de entrenamiento perceptivo en construcción.<br>
+    Los resultados se guardan solo en este navegador. Cuentas y perfil de progreso llegarán en la fase 2.
+  </div>
+
+</div>
+</body>
+</html>

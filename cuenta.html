@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tu cuenta · Awareness</title>
+<link rel="stylesheet" href="assets/awareness.css">
+<script src="assets/config.js"></script>
+<script src="assets/cloud.js"></script>
+<style>
+  .cta-wrap{max-width:480px;margin:0 auto;padding:40px 18px}
+  .cta-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:30px;text-align:center}
+  .cta-card h1{font-weight:300;font-size:1.5rem;margin-bottom:8px}
+  .cta-card p{color:var(--dim);font-size:.95rem;margin-bottom:18px}
+  input[type=email]{
+    width:100%;padding:14px;border-radius:12px;border:1px solid var(--border);
+    background:var(--bg2);color:var(--text);font-size:1rem;margin-bottom:14px;text-align:center
+  }
+  .estado{margin-top:16px;font-size:.9rem;color:var(--dim)}
+  .ok{color:var(--ok)} .warn{color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="cta-wrap">
+  <div class="aw-top" style="margin-bottom:14px">
+    <a class="aw-back" href="index.html">← Inicio</a>
+    <div class="aw-title">Tu cuenta</div>
+    <span></span>
+  </div>
+  <div class="cta-card" id="card">
+    <h1>Cargando…</h1>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+  const card = document.getElementById('card');
+
+  const pintar = (st) => {
+    if (!st.configured) {
+      card.innerHTML =
+        '<h1>Modo invitado</h1>' +
+        '<p>Las cuentas aún no están activadas en esta instalación. Todo tu progreso se guarda en este navegador. ' +
+        'Cuando se active la nube (ver CONFIGURAR-CUENTAS.md), podrás crear tu cuenta y conservarlo entre dispositivos.</p>' +
+        '<a class="aw-btn sec" href="perfil.html" style="text-decoration:none;display:inline-block">Ver mi progreso</a>';
+      return;
+    }
+    if (st.user) {
+      const pend = window.AwCloud ? AwCloud.pendientes() : 0;
+      card.innerHTML =
+        '<h1>Hola 👋</h1>' +
+        '<p>Sesión iniciada como <b style="color:var(--accent)">' + st.user.email + '</b>.<br>' +
+        'Tus partidas se registran en tu cuenta automáticamente.</p>' +
+        (pend ? '<p class="warn">' + pend + ' registros pendientes de subir (se subirán solos).</p>' : '<p class="ok">Todo sincronizado.</p>') +
+        '<div class="aw-actions">' +
+        '<a class="aw-btn" href="perfil.html" style="text-decoration:none">Mi progreso</a>' +
+        '<button class="aw-btn sec" id="salir">Cerrar sesión</button></div>';
+      document.getElementById('salir').onclick = () => AwCloud.signOut().then(() => location.reload());
+      return;
+    }
+    card.innerHTML =
+      '<h1>Entra con tu email</h1>' +
+      '<p>Te enviaremos un <b>enlace mágico</b>: lo abres y ya estás dentro. Sin contraseñas.</p>' +
+      '<input type="email" id="email" placeholder="tu@email.com" autocomplete="email">' +
+      '<button class="aw-btn" id="enviar">Enviarme el enlace</button>' +
+      '<div class="estado" id="estado"></div>' +
+      '<p style="margin-top:18px;font-size:.82rem">Si juegas sin cuenta, tu progreso vive solo en este navegador.</p>';
+    const est = document.getElementById('estado');
+    document.getElementById('enviar').onclick = () => {
+      const email = document.getElementById('email').value.trim();
+      if (!email || email.indexOf('@') < 1) { est.textContent = 'Escribe un email válido.'; return; }
+      est.textContent = 'Enviando…';
+      AwCloud.signIn(email).then(({ error }) => {
+        est.innerHTML = error
+          ? 'No se pudo enviar: ' + error.message
+          : '<span class="ok">✓ Enviado. Revisa tu correo (también el spam) y abre el enlace desde este dispositivo.</span>';
+      }).catch(e => { est.textContent = 'Error: ' + e.message; });
+    };
+  };
+
+  if (window.AwCloud) AwCloud.onChange(pintar);
+  else pintar({ configured: false });
+})();
+</script>
+</body>
+</html>

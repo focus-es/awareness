@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sesión de entrenamiento · Awareness</title>
+<link rel="stylesheet" href="assets/awareness.css">
+<script src="assets/config.js"></script>
+<script src="assets/cloud.js"></script>
+<style>
+  .ses-shell{display:flex;flex-direction:column;height:100vh;max-width:980px;margin:0 auto;padding:10px 12px}
+  .ses-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 2px 10px}
+  .ses-pasos{display:flex;gap:6px}
+  .ses-paso{width:34px;height:6px;border-radius:3px;background:var(--card2);border:1px solid var(--border)}
+  .ses-paso.done{background:var(--ok);border-color:var(--ok)}
+  .ses-paso.cur{background:var(--accent);border-color:var(--accent)}
+  iframe{flex:1;width:100%;border:1px solid var(--border);border-radius:16px;background:var(--bg2)}
+  .ses-overlay{
+    position:fixed;inset:0;background:rgba(10,14,22,.86);display:flex;align-items:center;
+    justify-content:center;z-index:50;backdrop-filter:blur(3px)
+  }
+  .ses-card{background:var(--card);border:1px solid var(--border);border-radius:20px;
+    padding:34px 30px;max-width:520px;width:92%;text-align:center}
+  .ses-card h2{font-weight:300;font-size:1.5rem;margin-bottom:10px}
+  .ses-card p{color:var(--dim);margin-bottom:20px}
+  .hidden{display:none!important}
+  .ses-res{display:grid;grid-template-columns:1fr auto;gap:8px 16px;text-align:left;
+    margin:14px 0 22px;font-size:.95rem}
+  .ses-res b{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="ses-shell">
+  <div class="ses-top">
+    <a class="aw-back" href="index.html">← Inicio</a>
+    <div class="aw-title" id="ses-titulo">Sesión</div>
+    <div class="ses-pasos" id="ses-pasos"></div>
+  </div>
+  <iframe id="marco" src="about:blank" allow="autoplay"></iframe>
+</div>
+
+<div class="ses-overlay" id="overlay">
+  <div class="ses-card" id="card"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const SESIONES = {
+    visual: {
+      titulo: 'Sesión · Espacio mental',
+      intro: 'Cuatro prácticas para entrenar la imagen mental: retener, rotar, recorrer y sincronizar. Unos 12-15 minutos.',
+      juegos: [
+        { id: 'memoria-visual', nombre: 'La fotografía mental', ruta: 'entrenamiento/08-memoria-visual/index.html' },
+        { id: 'rotacion-mental', nombre: 'Rotación mental', ruta: 'entrenamiento/10-rotacion-mental/index.html' },
+        { id: 'camino-que-desaparece', nombre: 'El camino que desaparece', ruta: 'entrenamiento/11-camino-que-desaparece/index.html' },
+        { id: 'latido-oculto', nombre: 'El latido oculto · cierre en calma', ruta: 'entrenamiento/15-latido-oculto/index.html' }
+      ]
+    },
+    audio: {
+      titulo: 'Sesión · Escucha',
+      intro: 'Cuatro prácticas con sonido: localizar, discriminar, imaginar y sentir. Usa auriculares. Unos 12-15 minutos.',
+      juegos: [
+        { id: 'escucha-el-espacio', nombre: 'Escucha el espacio', ruta: 'entrenamiento/03-escucha-el-espacio/index.html' },
+        { id: 'ecos-del-bosque', nombre: 'Ecos del bosque', ruta: 'entrenamiento/09-ecos-del-bosque/index.html' },
+        { id: 'forma-oculta', nombre: 'La forma oculta', ruta: 'entrenamiento/19-forma-oculta/index.html' },
+        { id: 'eco-de-los-sentidos', nombre: 'El eco de los sentidos · cierre suave', ruta: 'entrenamiento/18-eco-de-los-sentidos/index.html' }
+      ]
+    },
+    atencion: {
+      titulo: 'Sesión · Atención y control',
+      intro: 'Cuatro prácticas de foco: frenar, detectar, intuir y volver a la calma. Unos 12-15 minutos.',
+      juegos: [
+        { id: 'go-no-go', nombre: 'Go / No-Go', ruta: 'entrenamiento/04-go-no-go/index.html' },
+        { id: 'encuentra-el-cambio', nombre: 'Encuentra el cambio', ruta: 'entrenamiento/06-encuentra-el-cambio/index.html' },
+        { id: 'intuicion-patrones', nombre: 'Intuición', ruta: 'entrenamiento/12-intuicion-patrones/index.html' },
+        { id: 'latido-oculto', nombre: 'El latido oculto · cierre en calma', ruta: 'entrenamiento/15-latido-oculto/index.html' }
+      ]
+    }
+  };
+
+  const clave = new URLSearchParams(location.search).get('s') || 'visual';
+  const S = SESIONES[clave] || SESIONES.visual;
+  let paso = -1;                 // -1 = intro
+  const registros = [];
+  let esperandoFin = false;
+
+  const $t = document.getElementById('ses-titulo');
+  const $p = document.getElementById('ses-pasos');
+  const $m = document.getElementById('marco');
+  const $o = document.getElementById('overlay');
+  const $c = document.getElementById('card');
+  $t.textContent = S.titulo;
+
+  const pintarPasos = () => {
+    $p.innerHTML = S.juegos.map((_, i) =>
+      '<div class="ses-paso' + (i < paso ? ' done' : i === paso ? ' cur' : '') + '"></div>').join('');
+  };
+
+  const overlay = (html) => { $c.innerHTML = html; $o.classList.remove('hidden'); };
+  const cerrar = () => $o.classList.add('hidden');
+
+  const intro = () => {
+    pintarPasos();
+    overlay(
+      '<h2>' + S.titulo + '</h2><p>' + S.intro + '</p>' +
+      '<p style="font-size:.88rem">Recorrido: ' + S.juegos.map(j => j.nombre.split(' ·')[0]).join(' → ') + '</p>' +
+      '<button class="aw-btn" id="go">Empezar</button>'
+    );
+    document.getElementById('go').onclick = siguiente;
+  };
+
+  const siguiente = () => {
+    paso++;
+    if (paso >= S.juegos.length) return resumen();
+    pintarPasos(); cerrar();
+    esperandoFin = true;
+    $m.src = S.juegos[paso].ruta;
+  };
+
+  const resumen = () => {
+    pintarPasos();
+    const filas = registros.map(r => {
+      const m = r.metricas || {};
+      const dato = m.precision != null ? m.precision + '% precisión'
+        : m.puntuacion != null ? m.puntuacion + ' puntos'
+        : m.aciertos != null ? m.aciertos + ' aciertos'
+        : Object.entries(m).slice(0, 1).map(([k, v]) => k + ': ' + v).join('') || '—';
+      const j = S.juegos.find(x => x.id === r.modulo);
+      return '<div>' + ((j && j.nombre.split(' ·')[0]) || r.modulo) + ' · nivel ' + r.nivel + '</div><b>' + dato + '</b>';
+    }).join('');
+    const total = registros.reduce((a, r) => a + (r.duracion_s || 0), 0);
+    overlay(
+      '<h2>Sesión completada</h2>' +
+      '<p>Has recorrido ' + registros.length + ' prácticas en ' + Math.round(total / 60) + ' min de juego.</p>' +
+      '<div class="ses-res">' + filas + '</div>' +
+      '<div class="aw-actions">' +
+      '<button class="aw-btn" onclick="location.reload()">Repetir sesión</button>' +
+      '<button class="aw-btn sec" onclick="location.href=\'index.html\'">Inicio</button></div>'
+    );
+    try {
+      const hist = JSON.parse(localStorage.getItem('aw:aw:sesiones') || '[]');
+      hist.push({ sesion: clave, fecha: new Date().toISOString(), juegos: registros });
+      localStorage.setItem('aw:aw:sesiones', JSON.stringify(hist));
+    } catch (e) {}
+    try { if (window.AwCloud) AwCloud.push('session_runs', { sesion: clave, juegos: registros }); } catch (e) {}
+  };
+
+  window.addEventListener('message', (e) => {
+    const r = e.data && e.data.awareness;
+    if (!r || !esperandoFin) return;
+    if (r.metricas && r.metricas.abandonado) return;   // terminó manualmente: dejarle repetir
+    esperandoFin = false;
+    registros.push(r);
+    const ultimo = paso === S.juegos.length - 1;
+    overlay(
+      '<h2>' + S.juegos[paso].nombre.split(' ·')[0] + ' completado</h2>' +
+      '<p>Respira un momento. Cuando quieras, ' + (ultimo ? 'cerramos la sesión.' : 'seguimos con <b>' +
+        S.juegos[paso + 1].nombre.split(' ·')[0] + '</b>.') + '</p>' +
+      '<div class="aw-actions">' +
+      '<button class="aw-btn" id="next">' + (ultimo ? 'Ver resumen' : 'Siguiente práctica') + '</button>' +
+      '<button class="aw-btn sec" id="redo">Repetir esta</button></div>'
+    );
+    document.getElementById('next').onclick = siguiente;
+    document.getElementById('redo').onclick = () => { esperandoFin = true; cerrar(); $m.src = S.juegos[paso].ruta; };
+  });
+
+  intro();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mi progreso · Awareness</title>
+<link rel="stylesheet" href="assets/awareness.css">
+<script src="assets/config.js"></script>
+<script src="assets/cloud.js"></script>
+<style>
+  .pf-wrap{max-width:900px;margin:0 auto;padding:30px 16px 70px}
+  .pf-resumen{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0 30px}
+  .pf-kpi{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;text-align:center}
+  .pf-kpi .v{font-size:1.7rem;font-weight:600;color:var(--accent)}
+  .pf-kpi .k{font-size:.82rem;color:var(--dim)}
+  h2{font-size:1rem;color:var(--accent);font-weight:500;letter-spacing:.08em;text-transform:uppercase;margin:26px 0 14px}
+  .pf-juego{
+    display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;
+    background:var(--card);border:1px solid var(--border);border-radius:14px;
+    padding:14px 18px;margin-bottom:10px
+  }
+  .pf-juego .n{font-size:.95rem}
+  .pf-juego small{display:block;color:var(--dim);font-size:.78rem}
+  .pf-niv{display:flex;gap:4px}
+  .pf-dot{width:14px;height:14px;border-radius:50%;border:1px solid var(--border);background:var(--bg2)}
+  .pf-dot.on{background:var(--accent);border-color:var(--accent)}
+  .pf-best{font-size:.85rem;color:var(--dim);text-align:right;min-width:90px}
+  .pf-best b{color:var(--ok)}
+  .pf-vacio{color:var(--dim);text-align:center;padding:30px;font-size:.95rem}
+  .pf-estado{font-size:.85rem;color:var(--dim);text-align:center;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="pf-wrap">
+  <div class="aw-top">
+    <a class="aw-back" href="index.html">← Inicio</a>
+    <div class="aw-title">Mi progreso</div>
+    <a class="aw-back" href="cuenta.html">Cuenta</a>
+  </div>
+  <div class="pf-estado" id="estado"></div>
+  <div class="pf-resumen" id="kpis"></div>
+  <h2>Juegos</h2>
+  <div id="juegos"></div>
+  <h2>Sesiones guiadas</h2>
+  <div id="sesiones"></div>
+</div>
+<script>
+(function () {
+  'use strict';
+  const JUEGOS = [
+    ['memoria-visual', 'La fotografía mental', 'espacio mental'],
+    ['rotacion-mental', 'Rotación mental', 'espacio mental'],
+    ['camino-que-desaparece', 'El camino que desaparece', 'espacio mental'],
+    ['encuentra-el-cambio', 'Encuentra el cambio', 'percepción'],
+    ['escucha-el-espacio', 'Escucha el espacio', 'escucha'],
+    ['ecos-del-bosque', 'Ecos del bosque', 'escucha'],
+    ['forma-oculta', 'La forma oculta', 'escucha'],
+    ['guardian-invisible', 'El Guardián Invisible', 'escucha'],
+    ['go-no-go', 'Go / No-Go', 'control'],
+    ['intuicion-patrones', 'Intuición', 'intuición'],
+    ['eco-de-los-sentidos', 'El eco de los sentidos', 'intuición'],
+    ['latido-oculto', 'El latido oculto', 'regulación']
+  ];
+  const L = (k) => { try { const v = localStorage.getItem('aw:' + k); return v == null ? null : JSON.parse(v); } catch (e) { return null; } };
+
+  const hist = L('aw:historial') || [];
+  const sesiones = L('aw:sesiones') || [];
+
+  // KPIs
+  const dias = [...new Set(hist.map(r => (r.fecha || '').slice(0, 10)))].sort();
+  let racha = 0;
+  if (dias.length) {
+    const hoy = new Date(); racha = 0;
+    for (let i = 0; ; i++) {
+      const d = new Date(hoy); d.setDate(hoy.getDate() - i);
+      if (dias.includes(d.toISOString().slice(0, 10))) racha++;
+      else { if (i > 0) break; }
+      if (i > 400) break;
+    }
+  }
+  const desbloqueados = JUEGOS.reduce((a, [id]) => a + (L(id + ':unlocked') || 1), 0);
+  document.getElementById('kpis').innerHTML =
+    kpi(hist.length, 'partidas jugadas') +
+    kpi(sesiones.length, 'sesiones guiadas') +
+    kpi(desbloqueados + '/60', 'niveles desbloqueados') +
+    kpi(racha + (racha === 1 ? ' día' : ' días'), 'racha actual');
+  function kpi(v, k) { return '<div class="pf-kpi"><div class="v">' + v + '</div><div class="k">' + k + '</div></div>'; }
+
+  // Juegos
+  const cont = document.getElementById('juegos');
+  if (!hist.length) cont.innerHTML = '<div class="pf-vacio">Aún no hay partidas registradas. ¡Juega tu primera sesión!</div>';
+  JUEGOS.forEach(([id, nombre, grupo]) => {
+    const lvl = L(id + ':unlocked') || 1;
+    const partidas = hist.filter(r => r.modulo === id).length;
+    if (!partidas && lvl === 1) return;
+    let dots = '';
+    for (let i = 1; i <= 5; i++) dots += '<div class="pf-dot' + (i <= lvl ? ' on' : '') + '"></div>';
+    const best = L(id + ':best:' + lvl);
+    const fila = document.createElement('div');
+    fila.className = 'pf-juego';
+    fila.innerHTML = '<div class="n">' + nombre + '<small>' + grupo + ' · ' + partidas + ' partidas</small></div>' +
+      '<div class="pf-niv" title="Nivel ' + lvl + ' de 5">' + dots + '</div>' +
+      '<div class="pf-best">' + (best != null ? 'mejor <b>' + best + '</b>' : '—') + '</div>';
+    cont.appendChild(fila);
+  });
+  if (hist.length && !cont.children.length) cont.innerHTML = '<div class="pf-vacio">Sin datos por juego todavía.</div>';
+
+  // Sesiones
+  const sc = document.getElementById('sesiones');
+  if (!sesiones.length) sc.innerHTML = '<div class="pf-vacio">Ninguna sesión guiada completada aún.</div>';
+  else sc.innerHTML = sesiones.slice(-10).reverse().map(s => {
+    const nombre = { visual: 'Espacio mental', audio: 'Escucha', atencion: 'Atención y control' }[s.sesion] || s.sesion;
+    return '<div class="pf-juego"><div class="n">' + nombre +
+      '<small>' + (s.fecha || '').slice(0, 10) + ' · ' + (s.juegos || []).length + ' prácticas</small></div><div></div><div></div></div>';
+  }).join('');
+
+  // Estado de cuenta
+  const est = document.getElementById('estado');
+  if (window.AwCloud) AwCloud.onChange(st => {
+    est.innerHTML = !st.configured
+      ? 'Progreso guardado en este navegador (modo invitado).'
+      : st.user
+        ? 'Cuenta: <b style="color:var(--accent)">' + st.user.email + '</b> · registros sincronizados en la nube.'
+        : 'No has iniciado sesión — <a href="cuenta.html" style="color:var(--accent)">entra aquí</a> para guardar tu progreso en tu cuenta.';
+  });
+})();
+</script>
+</body>
+</html>
