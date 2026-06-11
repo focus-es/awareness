@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rotación mental · Awareness</title>
+<link rel="stylesheet" href="../../assets/awareness.css">
+</head>
+<body>
+<script src="../../assets/awareness.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // Parámetros por nivel: tamaño de figura, nº de opciones, solo-espejos, ángulos libres, tiempo límite
+  const LEVELS = [
+    { cells: [4, 5], opts: 3, mirrorOnly: false, extra: false, time: 0,     rounds: 8  },
+    { cells: [5, 6], opts: 4, mirrorOnly: false, extra: false, time: 0,     rounds: 10 },
+    { cells: [6, 6], opts: 4, mirrorOnly: true,  extra: false, time: 0,     rounds: 10 },
+    { cells: [6, 7], opts: 4, mirrorOnly: true,  extra: true,  time: 10000, rounds: 12 },
+    { cells: [7, 7], opts: 4, mirrorOnly: true,  extra: true,  time: 7000,  rounds: 12 }
+  ];
+
+  // --- geometría de poliominós ---
+  const rot90 = c => c.map(p => [-p[1], p[0]]);
+  const mirror = c => c.map(p => [-p[0], p[1]]);
+  function norm(c) {
+    let mx = Infinity, my = Infinity;
+    c.forEach(p => { mx = Math.min(mx, p[0]); my = Math.min(my, p[1]); });
+    return c.map(p => [p[0] - mx, p[1] - my]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  }
+  const keyOf = c => norm(c).map(p => p.join(',')).join(';');
+  function allRotKeys(c) {
+    const r = []; let x = c;
+    for (let i = 0; i < 4; i++) { r.push(keyOf(x)); x = rot90(x); }
+    return r;
+  }
+  function genPoly(n, rng) {
+    const cells = [[0, 0]], used = new Set(['0,0']);
+    let guard = 0;
+    while (cells.length < n && guard++ < 300) {
+      const b = cells[Math.floor(rng() * cells.length)];
+      const d = [[1, 0], [-1, 0], [0, 1], [0, -1]][Math.floor(rng() * 4)];
+      const q = [b[0] + d[0], b[1] + d[1]], k = q.join(',');
+      if (!used.has(k)) { used.add(k); cells.push(q); }
+    }
+    return cells.length === n ? cells : null;
+  }
+  // figura quiral: su espejo NO coincide con ninguna rotación (si no, el espejo sería respuesta válida)
+  function genChiral(n, rng, forbidden) {
+    for (let t = 0; t < 400; t++) {
+      const c = genPoly(n, rng);
+      if (!c) continue;
+      const rk = allRotKeys(c), mk = allRotKeys(mirror(c));
+      if (rk.some(k => mk.indexOf(k) >= 0)) continue;
+      if (forbidden && rk.concat(mk).some(k => forbidden.has(k))) continue;
+      return c;
+    }
+    return null;
+  }
+  const FALLBACK = {
+    4: [[0, 0], [0, 1], [0, 2], [1, 2]],
+    5: [[0, 0], [0, 1], [0, 2], [1, 2], [1, 3]],
+    6: [[0, 0], [0, 1], [0, 2], [1, 2], [1, 3], [2, 3]],
+    7: [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2], [2, 3], [3, 3]]
+  };
+
+  Awareness.start({
+    id: 'rotacion-mental',
+    title: 'Rotación mental',
+    tagline: 'Encuentra la figura que es la MISMA que el modelo, solo girada.',
+    instructions: 'Arriba verás una figura modelo. Abajo, varias candidatas: solo una es la misma figura rotada. ' +
+      'Las demás son su <b style="color:var(--warn)">imagen espejo</b> (¡girarla nunca la hará coincidir!) u otras figuras parecidas. ' +
+      'En niveles altos las opciones aparecen en ángulos extraños y hay tiempo límite.',
+    levelHints: [
+      'Figuras pequeñas, 3 opciones, sin prisa',
+      'Figuras medianas, 4 opciones',
+      'Todas las trampas son espejos: gira con cuidado',
+      'Ángulos extraños y 10 s por figura',
+      'Figuras grandes, ángulos libres, solo 7 s'
+    ],
+    metricLabels: {
+      aciertos: 'Aciertos', fallos: 'Fallos',
+      tiempo_medio_s: 'Tiempo medio (s)', precision: 'Precisión %'
+    },
+    primaryMetric: 'precision',
+    game: {
+      start(ctx) {
+        const P = LEVELS[ctx.level - 1];
+        const st = ctx.stage;
+        st.innerHTML =
+          '<div id="tbar" style="position:absolute;top:0;left:0;height:4px;background:var(--warn);width:0;opacity:0;z-index:2"></div>' +
+          '<div style="position:absolute;inset:0;overflow:auto;display:flex">' +
+          '<div style="margin:auto;display:flex;flex-direction:column;align-items:center;gap:12px;padding:14px;width:100%">' +
+          '<div id="msg" style="color:var(--dim);font-size:.92rem;min-height:1.4em"></div>' +
+          '<div id="target" style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:6px"></div>' +
+          '<div id="opts" style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;max-width:480px"></div>' +
+          '</div></div>';
+        const tbar = st.querySelector('#tbar'), msg = st.querySelector('#msg');
+        const tgt = st.querySelector('#target'), opts = st.querySelector('#opts');
+
+        let round = 0, hits = 0, fails = 0, rts = [], timers = [];
+        let roundT0 = 0, timeoutId = null, locked = true;
+        const T = (fn, ms) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+        ctx.cleanup(() => timers.forEach(clearTimeout));
+
+        const hud = () => ctx.hud.set({ Figura: round + '/' + P.rounds, Aciertos: hits, Fallos: fails });
+
+        function polySVG(cells, deg, size) {
+          const nc = norm(cells);
+          let w = 0, h = 0;
+          nc.forEach(p => { w = Math.max(w, p[0] + 1); h = Math.max(h, p[1] + 1); });
+          const cs = 64 / Math.max(w, h);
+          const ox = (100 - w * cs) / 2, oy = (100 - h * cs) / 2;
+          const rects = nc.map(p =>
+            '<rect x="' + (ox + p[0] * cs + 1).toFixed(1) + '" y="' + (oy + p[1] * cs + 1).toFixed(1) +
+            '" width="' + (cs - 2).toFixed(1) + '" height="' + (cs - 2).toFixed(1) +
+            '" rx="3" fill="var(--accent)"/>').join('');
+          return '<svg viewBox="0 0 100 100" width="' + size + '" height="' + size +
+            '" style="display:block"><g transform="rotate(' + deg + ' 50 50)">' + rects + '</g></svg>';
+        }
+
+        const EXTRA = [25, 50, 70, 110, 130, 160, 200, 230, 250, 290, 310, 340];
+
+        function buildRound() {
+          const n = P.cells[0] + Math.floor(ctx.rng() * (P.cells[1] - P.cells[0] + 1));
+          const target = genChiral(n, ctx.rng, null) || FALLBACK[n];
+          const mir = mirror(target);
+          const forbidden = new Set(allRotKeys(target).concat(allRotKeys(mir)));
+          const used = new Set();
+          const list = [];
+          // opción correcta: la misma figura, girada 90/180/270
+          let rot = target;
+          const kc = 1 + Math.floor(ctx.rng() * 3);
+          for (let i = 0; i < kc; i++) rot = rot90(rot);
+          list.push({ cells: rot, ok: true });
+          used.add(keyOf(rot));
+          // distractores espejo en rotaciones distintas
+          const want = P.mirrorOnly ? P.opts - 1 : 1;
+          const ks = [0, 1, 2, 3].sort(() => ctx.rng() - 0.5);
+          let added = 0;
+          for (let j = 0; j < ks.length && added < want; j++) {
+            let m = mir;
+            for (let i = 0; i < ks[j]; i++) m = rot90(m);
+            const kk = keyOf(m);
+            if (used.has(kk)) continue;
+            used.add(kk); list.push({ cells: m, ok: false }); added++;
+          }
+          // completar con otras figuras no congruentes
+          let guard = 0;
+          while (list.length < P.opts && guard++ < 30) {
+            const o = genChiral(n, ctx.rng, forbidden);
+            if (!o) break;
+            const kk = keyOf(o);
+            if (used.has(kk)) continue;
+            allRotKeys(o).concat(allRotKeys(mirror(o))).forEach(x => forbidden.add(x));
+            used.add(kk); list.push({ cells: o, ok: false });
+          }
+          for (let i = list.length - 1; i > 0; i--) {
+            const j = Math.floor(ctx.rng() * (i + 1));
+            const tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+          }
+          return { target: target, list: list };
+        }
+
+        function next() {
+          if (round >= P.rounds) return end();
+          round++; hud(); locked = false;
+          msg.textContent = '¿Cuál es la misma figura, solo girada?';
+          const R = buildRound();
+          tgt.innerHTML = polySVG(R.target, 0, 104);
+          opts.innerHTML = '';
+          R.list.forEach(o => {
+            const deg = P.extra ? EXTRA[Math.floor(ctx.rng() * EXTRA.length)] : 0;
+            const b = document.createElement('button');
+            b.className = 'aw-choice';
+            b.dataset.ok = o.ok ? '1' : '0';
+            b.style.cssText = 'padding:6px;min-width:96px;min-height:96px;display:flex;align-items:center;justify-content:center';
+            b.innerHTML = polySVG(o.cells, deg, 84);
+            b.onclick = () => pick(b, o.ok);
+            opts.appendChild(b);
+          });
+          roundT0 = performance.now();
+          if (P.time) {
+            tbar.style.opacity = 1;
+            tbar.style.transition = 'none';
+            tbar.style.width = '100%';
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+              tbar.style.transition = 'width ' + P.time + 'ms linear';
+              tbar.style.width = '0%';
+            }));
+            timeoutId = T(() => pick(null, false), P.time);
+          }
+        }
+
+        function pick(btn, ok) {
+          if (locked) return;
+          locked = true;
+          if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+          tbar.style.opacity = 0;
+          rts.push(performance.now() - roundT0);
+          const btns = Array.prototype.slice.call(opts.children);
+          btns.forEach(b => { b.disabled = true; });
+          const good = btns.filter(b => b.dataset.ok === '1')[0];
+          if (ok) {
+            hits++;
+            btn.classList.add('ok');
+            st.classList.add('aw-flash-ok'); T(() => st.classList.remove('aw-flash-ok'), 380);
+          } else {
+            fails++;
+            if (btn) btn.classList.add('bad');
+            else msg.textContent = 'Tiempo agotado · esta era la correcta';
+            if (good) good.classList.add('ok');
+            st.classList.add('aw-flash-bad'); T(() => st.classList.remove('aw-flash-bad'), 380);
+          }
+          hud();
+          T(next, ok ? 750 : 1400);
+        }
+
+        function end() {
+          const total = hits + fails;
+          const tm = rts.length ? rts.reduce((a, b) => a + b, 0) / rts.length / 1000 : 0;
+          ctx.finish({
+            aciertos: hits, fallos: fails,
+            tiempo_medio_s: Math.round(tm * 10) / 10,
+            precision: total ? Math.round(100 * hits / total) : 0
+          });
+        }
+
+        hud();
+        msg.textContent = 'Prepárate…';
+        T(next, 1000);
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
