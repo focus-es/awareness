@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>El Guardián Invisible · Awareness</title>
+<link rel="stylesheet" href="../../assets/awareness.css">
+</head>
+<body>
+<script src="../../assets/awareness.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // Parámetros por nivel: duración de cada barrido (ms), volumen, cruces totales, ventana (ms), presencias
+  const LEVELS = [
+    { sweep: [4000, 6000], vol: 0.50, cross: 10, win: 380, presences: 1, pause: 0.0 },
+    { sweep: [3200, 5000], vol: 0.42, cross: 12, win: 320, presences: 1, pause: 0.15 },
+    { sweep: [2400, 4200], vol: 0.34, cross: 13, win: 270, presences: 1, pause: 0.30 },
+    { sweep: [1800, 3400], vol: 0.27, cross: 14, win: 230, presences: 1, pause: 0.40 },
+    { sweep: [1600, 3000], vol: 0.22, cross: 16, win: 200, presences: 2, pause: 0.45 }
+  ];
+
+  Awareness.start({
+    id: 'guardian-invisible',
+    title: 'El Guardián Invisible',
+    tagline: 'Cierra los ojos si quieres: cuando la presencia cruce el frente, pulsa.',
+    instructions: '<b>Auriculares obligatorios.</b> Una presencia sonora se mueve de un oído a otro. ' +
+      'Pulsa <b>ESPACIO</b> o toca la pantalla justo cuando la sientas <b style="color:var(--accent)">delante de ti</b>, ' +
+      'en el centro exacto del campo. Este módulo es 100% jugable sin visión: todo ocurre en el sonido.',
+    levelHints: [
+      'Movimiento lento y regular',
+      'Más rápido, con pausas en los lados',
+      'Trayectorias irregulares, volumen menor',
+      'Rápido, sutil y caprichoso',
+      'Dos presencias a la vez: escucha total'
+    ],
+    metricLabels: {
+      aciertos: 'Aciertos', fallos: 'Fallos', error_ms: 'Error medio (ms)', precision: 'Precisión %'
+    },
+    primaryMetric: 'precision',
+    game: {
+      start(ctx) {
+        const P = LEVELS[ctx.level - 1];
+        const st = ctx.stage;
+        let timers = [], raf = 0, audio = null, master = null;
+        const T = (fn, ms) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+        ctx.cleanup(() => {
+          timers.forEach(clearTimeout); cancelAnimationFrame(raf);
+          if (audio) { try { audio.close(); } catch (e) {} }
+        });
+
+        // pantalla casi negra, texto grande de alto contraste
+        st.style.background = '#04060a';
+        st.innerHTML =
+          '<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:20px;text-align:center">' +
+          '<div id="status" role="status" aria-live="polite" style="color:#ffffff;font-size:1.5rem;font-weight:600;max-width:560px;line-height:1.4">' +
+          'Ponte los auriculares.<br>Este juego se escucha, no se mira.</div>' +
+          '<button id="go" class="aw-btn" style="min-height:56px;min-width:220px;font-size:1.15rem">Activar sonido</button>' +
+          '<div id="sub" style="color:#9fb0c4;font-size:1.05rem;max-width:520px">' +
+          'Cuando la presencia cruce justo el frente (centro entre tus dos oídos), pulsa ESPACIO o toca la pantalla.</div>' +
+          '</div>';
+        const status = st.querySelector('#status'), sub = st.querySelector('#sub'),
+              goBtn = st.querySelector('#go');
+
+        // --- estado de juego ---
+        let playing = false, crossings = 0, hits = 0, misses = 0;
+        let errs = [], pendingPress = null, openCross = [];
+        const presences = [];
+
+        const hud = () => ctx.hud.set({
+          'Cruces': crossings + '/' + P.cross, 'Aciertos': hits, 'Fallos': misses
+        });
+
+        const beep = (freq, dur, vol, type) => {
+          if (!audio) return;
+          const o = audio.createOscillator(), g = audio.createGain();
+          o.type = type || 'triangle'; o.frequency.value = freq;
+          g.gain.setValueAtTime(0.0001, audio.currentTime);
+          g.gain.exponentialRampToValueAtTime(vol, audio.currentTime + 0.015);
+          g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + dur);
+          o.connect(g); g.connect(master);
+          o.start(); o.stop(audio.currentTime + dur + 0.05);
+        };
+
+        const mkPresence = (baseFreq) => {
+          const g = audio.createGain();
+          g.gain.value = 0;
+          const pan = audio.createStereoPanner ? audio.createStereoPanner() : null;
+          const o1 = audio.createOscillator(); o1.type = 'sine'; o1.frequency.value = baseFreq;
+          const o2 = audio.createOscillator(); o2.type = 'sine'; o2.frequency.value = baseFreq * 1.007; // batido suave
+          const og = audio.createGain(); og.gain.value = 0.5;
+          o1.connect(og); o2.connect(og);
+          // leve textura: trémolo lento
+          const lfo = audio.createOscillator(); lfo.frequency.value = 0.7 + Math.random() * 0.5;
+          const lfoG = audio.createGain(); lfoG.gain.value = 0.12;
+          lfo.connect(lfoG); lfoG.connect(g.gain);
+          if (pan) { og.connect(g); g.connect(pan); pan.connect(master); }
+          else { og.connect(g); g.connect(master); }
+          o1.start(); o2.start(); lfo.start();
+          const pr = {
+            pan, g, baseFreq,
+            value: (ctx.rng() < 0.5 ? -0.8 : 0.8),    // posición actual -1..1
+            from: 0, to: 0, t0: 0, dur: 1, resting: 0
+          };
+          pr.from = pr.value; pr.to = -Math.sign(pr.value) * (0.55 + ctx.rng() * 0.4);
+          pr.t0 = performance.now(); pr.dur = P.sweep[0] + ctx.rng() * (P.sweep[1] - P.sweep[0]);
+          presences.push(pr);
+          // fade in suave
+          g.gain.setValueAtTime(0, audio.currentTime);
+          g.gain.linearRampToValueAtTime(P.vol, audio.currentTime + 1.2);
+          return pr;
+        };
+
+        const ease = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+        const resolvePress = (tp) => {
+          // ¿hay un cruce reciente sin reclamar dentro de la ventana?
+          for (let i = 0; i < openCross.length; i++) {
+            const dt = tp - openCross[i];
+            if (Math.abs(dt) <= P.win) {
+              openCross.splice(i, 1);
+              hits++; errs.push(Math.abs(dt));
+              beep(740, 0.18, 0.10, 'triangle');
+              status.textContent = 'Justo delante. ' + Math.round(Math.abs(dt)) + ' ms.';
+              hud();
+              return;
+            }
+          }
+          // si no, queda pendiente por si el cruce llega enseguida
+          if (pendingPress) {
+            // la pulsación anterior caduca como fallo
+            misses++; beep(150, 0.22, 0.08, 'sine');
+          }
+          pendingPress = tp;
+          T(() => {
+            if (pendingPress === tp) {
+              pendingPress = null;
+              misses++; beep(150, 0.22, 0.08, 'sine');
+              status.textContent = 'Aún no estaba en el centro.';
+              hud();
+            }
+          }, P.win + 20);
+        };
+
+        const onCross = (tc) => {
+          crossings++;
+          if (pendingPress && Math.abs(tc - pendingPress) <= P.win) {
+            const dt = Math.abs(tc - pendingPress);
+            pendingPress = null;
+            hits++; errs.push(dt);
+            beep(740, 0.18, 0.10, 'triangle');
+            status.textContent = 'Justo delante. ' + Math.round(dt) + ' ms.';
+          } else {
+            openCross.push(tc);
+            T(() => { const i = openCross.indexOf(tc); if (i >= 0) openCross.splice(i, 1); }, P.win + 20);
+          }
+          hud();
+          if (crossings >= P.cross) T(end, P.win + 600);
+        };
+
+        const loop = (now) => {
+          if (!playing) return;
+          presences.forEach(pr => {
+            if (pr.resting > now) return;
+            let t = (now - pr.t0) / pr.dur;
+            if (t >= 1) {
+              // nuevo barrido hacia el otro lado
+              const prev = pr.to;
+              pr.value = prev; pr.from = prev;
+              pr.to = -Math.sign(prev || 1) * (0.55 + ctx.rng() * 0.4);
+              pr.dur = P.sweep[0] + ctx.rng() * (P.sweep[1] - P.sweep[0]);
+              pr.t0 = now;
+              if (ctx.rng() < P.pause) pr.resting = now + 400 + ctx.rng() * 1200; // pausa caprichosa en el lado
+              t = 0;
+            }
+            const prevVal = pr.value;
+            pr.value = pr.from + (pr.to - pr.from) * ease(Math.max(0, Math.min(1, t)));
+            if (pr.pan) pr.pan.pan.setTargetAtTime(pr.value, audio.currentTime, 0.02);
+            // detección de cruce por cero (interpolado)
+            if (crossings < P.cross && ((prevVal < 0 && pr.value >= 0) || (prevVal > 0 && pr.value <= 0))) {
+              onCross(now);
+            }
+          });
+          raf = requestAnimationFrame(loop);
+        };
+
+        const onPress = () => { if (playing) resolvePress(performance.now()); };
+        const onKey = (e) => { if (e.code === 'Space') { e.preventDefault(); onPress(); } };
+
+        goBtn.onclick = () => {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) { status.textContent = 'Tu navegador no soporta WebAudio.'; return; }
+          audio = new AC();
+          master = audio.createGain(); master.gain.value = 0.9; master.connect(audio.destination);
+          if (audio.state === 'suspended') audio.resume();
+          goBtn.remove();
+          status.textContent = 'Escucha…';
+          sub.textContent = 'La presencia despierta. Pulsa cuando cruce el frente.';
+          mkPresence(105);
+          if (P.presences > 1) T(() => { if (playing) mkPresence(158); }, 5000);
+          playing = true;
+          hud();
+          raf = requestAnimationFrame(loop);
+          st.addEventListener('pointerdown', onPress);
+          window.addEventListener('keydown', onKey);
+          ctx.cleanup(() => window.removeEventListener('keydown', onKey));
+          T(() => { if (playing) status.textContent = 'La presencia se mueve…'; }, 3000);
+        };
+
+        const end = () => {
+          if (!playing) return;
+          playing = false;
+          cancelAnimationFrame(raf);
+          presences.forEach(pr => {
+            try { pr.g.gain.linearRampToValueAtTime(0, audio.currentTime + 0.6); } catch (e) {}
+          });
+          status.textContent = 'La presencia se retira…';
+          const errMean = errs.length ? Math.round(errs.reduce((a, b) => a + b, 0) / errs.length) : 0;
+          T(() => ctx.finish({
+            aciertos: hits,
+            fallos: misses,
+            error_ms: errMean,
+            precision: crossings ? Math.round(100 * hits / crossings) : 0
+          }), 1200);
+        };
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
