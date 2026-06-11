@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Encuentra el cambio · Awareness</title>
+<link rel="stylesheet" href="../../assets/awareness.css">
+</head>
+<body>
+<script src="../../assets/awareness.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // Parámetros por nivel: nº de figuras, ritmo de parpadeo, sutileza y tiempo límite
+  const LEVELS = [
+    { n: 8,  show: 800, blank: 320, rounds: 6, subtle: 0,   time: 30, peripheral: false },
+    { n: 12, show: 700, blank: 290, rounds: 6, subtle: .3,  time: 28, peripheral: false },
+    { n: 16, show: 600, blank: 260, rounds: 7, subtle: .55, time: 26, peripheral: true },
+    { n: 20, show: 500, blank: 240, rounds: 7, subtle: .75, time: 24, peripheral: true },
+    { n: 24, show: 420, blank: 220, rounds: 8, subtle: 1,   time: 22, peripheral: true }
+  ];
+
+  const PALETTE = ['#7fb4d9', '#9d8fd9', '#8fc9a8', '#d9c48f', '#d98f8f', '#6a8db0', '#b3a4e0'];
+  const VBW = 100, VBH = 70;
+
+  function shuffle(a, rng) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  // Mezcla dos colores hex (t=0 → a, t=1 → b)
+  function mix(a, b, t) {
+    const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+    const r = Math.round(((pa >> 16) & 255) * (1 - t) + ((pb >> 16) & 255) * t);
+    const g = Math.round(((pa >> 8) & 255) * (1 - t) + ((pb >> 8) & 255) * t);
+    const bl = Math.round((pa & 255) * (1 - t) + (pb & 255) * t);
+    return '#' + ((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0');
+  }
+
+  // Dibuja una figura (orbe, hoja, cristal o runa) centrada en su posición
+  function shapeSVG(el) {
+    if (el.gone) return '';
+    const c = el.color, s = el.s;
+    let body = '';
+    if (el.type === 'orbe') {
+      body = '<circle r="' + s + '" fill="' + c + '" opacity="0.92"/>' +
+             '<circle cx="' + (-s * .32) + '" cy="' + (-s * .32) + '" r="' + (s * .3) + '" fill="#ffffff" opacity="0.22"/>';
+    } else if (el.type === 'hoja') {
+      body = '<ellipse rx="' + s + '" ry="' + (s * .48) + '" fill="' + c + '" opacity="0.92"/>' +
+             '<line x1="' + (-s * .8) + '" y1="0" x2="' + (s * .8) + '" y2="0" stroke="#0e1420" stroke-width="0.7" opacity="0.5"/>';
+    } else if (el.type === 'cristal') {
+      body = '<polygon points="0,' + (-s) + ' ' + (s * .62) + ',0 0,' + s + ' ' + (-s * .62) + ',0" fill="' + c + '" opacity="0.92"/>' +
+             '<line x1="0" y1="' + (-s) + '" x2="0" y2="' + s + '" stroke="#ffffff" stroke-width="0.5" opacity="0.3"/>';
+    } else { // runa
+      body = '<g stroke="' + c + '" stroke-width="' + (s * .26) + '" stroke-linecap="round" fill="none">' +
+             '<line x1="0" y1="' + (-s) + '" x2="0" y2="' + s + '"/>' +
+             '<line x1="0" y1="' + (-s * .7) + '" x2="' + (s * .75) + '" y2="' + (-s * .15) + '"/>' +
+             '<line x1="0" y1="' + (-s * .1) + '" x2="' + (s * .75) + '" y2="' + (s * .45) + '"/></g>';
+    }
+    return '<g transform="translate(' + el.x + ' ' + el.y + ') rotate(' + el.rot + ')">' + body + '</g>';
+  }
+
+  function makeScene(rng, n) {
+    const cells = [];
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) cells.push([c, r]);
+    shuffle(cells, rng);
+    const types = ['orbe', 'hoja', 'cristal', 'runa'];
+    const els = [];
+    for (let i = 0; i < n; i++) {
+      const cell = cells[i];
+      els.push({
+        type: types[Math.floor(rng() * types.length)],
+        x: 10 + cell[0] * 16 + (rng() * 6 - 3),
+        y: 9 + cell[1] * 17 + (rng() * 5 - 2.5),
+        s: 4.5 + rng() * 3,
+        rot: Math.floor(rng() * 360),
+        color: PALETTE[Math.floor(rng() * PALETTE.length)],
+        gone: false
+      });
+    }
+    return els;
+  }
+
+  // Genera la escena B: idéntica salvo UN elemento que cambia
+  function applyChange(rng, els, P) {
+    const els2 = els.map(e => Object.assign({}, e));
+    let idx;
+    if (P.peripheral) {
+      const sorted = els.map((e, i) => ({ i: i, d: Math.hypot(e.x - 50, e.y - 35) }))
+        .sort((a, b) => b.d - a.d);
+      idx = sorted[Math.floor(rng() * Math.ceil(els.length / 2))].i;
+    } else {
+      idx = Math.floor(rng() * els.length);
+    }
+    const kinds = ['color', 'mover', 'tamano', 'desaparece'];
+    const kind = kinds[Math.floor(rng() * kinds.length)];
+    const t = els2[idx], sub = P.subtle;
+    if (kind === 'color') {
+      let nc = t.color;
+      while (nc === t.color) nc = PALETTE[Math.floor(rng() * PALETTE.length)];
+      t.color = sub < .4 ? nc : mix(t.color, nc, 1 - .55 * sub);
+    } else if (kind === 'mover') {
+      const mag = 11 - 6 * sub, ang = rng() * Math.PI * 2;
+      t.x = clamp(t.x + Math.cos(ang) * mag, 6, 94);
+      t.y = clamp(t.y + Math.sin(ang) * mag, 6, 64);
+    } else if (kind === 'tamano') {
+      const f = rng() < .5 ? (1.5 - .45 * sub) : (.62 + .22 * sub);
+      t.s = Math.max(2.6, t.s * f);
+    } else {
+      t.gone = true;
+    }
+    return { els2: els2, idx: idx, kind: kind };
+  }
+
+  const KIND_TXT = {
+    color: 'cambiaba de color', mover: 'cambiaba de sitio',
+    tamano: 'cambiaba de tamaño', desaparece: 'desaparecía'
+  };
+
+  Awareness.start({
+    id: 'encuentra-el-cambio',
+    title: 'Encuentra el cambio',
+    tagline: 'La imagen parpadea entre dos versiones: toca el único elemento que es distinto.',
+    instructions: 'Verás una escena que <b>parpadea</b>: imagen, destello gris, imagen… Las dos versiones son casi idénticas, ' +
+      'pero <b style="color:var(--accent)">un solo elemento cambia</b> entre una y otra: de color, de sitio, de tamaño, o aparece y desaparece. ' +
+      'Compara con calma cada parpadeo y, cuando localices el elemento que cambia, <b>tócalo</b>. Cada toque equivocado cuenta como fallo.',
+    levelHints: [
+      'Pocas figuras, cambios evidentes',
+      'Más figuras, cambios claros',
+      'Cambios sutiles, a menudo en los bordes',
+      'Muchas figuras y parpadeo rápido',
+      'Cambios mínimos en plena periferia'
+    ],
+    metricLabels: {
+      aciertos: 'Cambios encontrados', fallos: 'Toques fallidos', perdidos: 'No encontrados',
+      tiempo_medio_s: 'Detección media (s)', precision: 'Precisión %'
+    },
+    primaryMetric: 'precision',
+    game: {
+      start(ctx) {
+        const P = LEVELS[ctx.level - 1];
+        const st = ctx.stage;
+        st.innerHTML =
+          '<div id="msg" style="position:absolute;top:10px;left:0;right:0;text-align:center;color:var(--dim);font-size:.92rem;z-index:2;pointer-events:none"></div>' +
+          '<div id="holder" style="position:absolute;inset:0"><svg id="sc" width="100%" height="100%" viewBox="0 0 ' + VBW + ' ' + VBH + '" preserveAspectRatio="xMidYMid meet"></svg></div>';
+        const svg = st.querySelector('#sc');
+        const msg = st.querySelector('#msg');
+
+        let round = 0, hits = 0, wrong = 0, lost = 0;
+        let times = [], timers = [], interval = null;
+        let A = null, B = null, target = -1, kind = '', phase = 'idle', roundT0 = 0, deadline = 0;
+        const T = (fn, ms) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+        const stopAll = () => {
+          timers.forEach(clearTimeout); timers = [];
+          if (interval) { clearInterval(interval); interval = null; }
+        };
+        ctx.cleanup(stopAll);
+
+        const hud = (left) => ctx.hud.set({
+          Ronda: Math.min(round, P.rounds) + '/' + P.rounds,
+          Encontrados: hits, Fallos: wrong,
+          Tiempo: (left != null ? left : '—')
+        });
+
+        const render = (els, ring) => {
+          let out = '';
+          els.forEach(e => { out += shapeSVG(e); });
+          if (ring) {
+            const e = A[target];
+            out += '<circle cx="' + e.x + '" cy="' + e.y + '" r="' + (e.s + 4.5) + '" fill="none" stroke="' + ring + '" stroke-width="1.4" stroke-dasharray="3 2"/>';
+          }
+          svg.innerHTML = out;
+        };
+        const renderBlank = () => { svg.innerHTML = '<rect x="0" y="0" width="' + VBW + '" height="' + VBH + '" fill="#39455c"/>'; };
+
+        // Bucle de parpadeo A → gris → B → gris → …
+        const flicker = (showA) => {
+          if (phase !== 'play') return;
+          render(showA ? A : B, null);
+          T(() => {
+            if (phase !== 'play') return;
+            renderBlank();
+            T(() => flicker(!showA), P.blank);
+          }, P.show);
+        };
+
+        const toScene = (e) => {
+          const r = svg.getBoundingClientRect();
+          const sc = Math.min(r.width / VBW, r.height / VBH);
+          return {
+            x: (e.clientX - r.left - (r.width - VBW * sc) / 2) / sc,
+            y: (e.clientY - r.top - (r.height - VBH * sc) / 2) / sc
+          };
+        };
+
+        const onTap = (e) => {
+          if (phase !== 'play') return;
+          const p = toScene(e);
+          let best = -1, bestD = 1e9;
+          for (let i = 0; i < A.length; i++) {
+            let d = Math.hypot(p.x - A[i].x, p.y - A[i].y);
+            if (i === target && !B[i].gone) d = Math.min(d, Math.hypot(p.x - B[i].x, p.y - B[i].y));
+            if (d < bestD) { bestD = d; best = i; }
+          }
+          const hitR = best >= 0 ? Math.max(8, A[best].s + 4) : 0;
+          if (best === target && bestD <= hitR) {
+            phase = 'done'; stopAll();
+            hits++;
+            times.push((performance.now() - roundT0) / 1000);
+            st.classList.add('aw-flash-ok'); T(() => st.classList.remove('aw-flash-ok'), 380);
+            render(A, 'var(--ok)');
+            msg.textContent = '¡Encontrado! El elemento ' + KIND_TXT[kind] + '.';
+            hud('—');
+            T(next, 1400);
+          } else {
+            wrong++;
+            st.classList.add('aw-flash-bad'); T(() => st.classList.remove('aw-flash-bad'), 380);
+            hud(Math.max(0, Math.ceil((deadline - performance.now()) / 1000)));
+          }
+        };
+        st.addEventListener('pointerdown', onTap);
+        ctx.cleanup(() => st.removeEventListener('pointerdown', onTap));
+
+        const timeOut = () => {
+          phase = 'done'; stopAll();
+          lost++;
+          render(A, 'var(--warn)');
+          msg.textContent = 'Se acabó el tiempo. El cambio estaba aquí: ' + KIND_TXT[kind] + '.';
+          hud('—');
+          T(next, 1700);
+        };
+
+        const next = () => {
+          if (round >= P.rounds) return end();
+          round++;
+          A = makeScene(ctx.rng, P.n);
+          const ch = applyChange(ctx.rng, A, P);
+          B = ch.els2; target = ch.idx; kind = ch.kind;
+          msg.textContent = 'Ronda ' + round + ' · busca el elemento que cambia…';
+          render(A, null);
+          T(() => {
+            msg.textContent = '';
+            phase = 'play';
+            roundT0 = performance.now();
+            deadline = roundT0 + P.time * 1000;
+            flicker(true);
+            interval = setInterval(() => {
+              const left = Math.ceil((deadline - performance.now()) / 1000);
+              if (left <= 0) timeOut(); else hud(left);
+            }, 250);
+            hud(P.time);
+          }, 1100);
+        };
+
+        const end = () => {
+          const tries = hits + wrong + lost;
+          const tm = times.length ? (times.reduce((a, b) => a + b, 0) / times.length) : 0;
+          ctx.finish({
+            aciertos: hits, fallos: wrong, perdidos: lost,
+            tiempo_medio_s: Math.round(tm * 10) / 10,
+            precision: tries ? Math.round(100 * hits / tries) : 0
+          });
+        };
+
+        hud('—');
+        msg.textContent = 'Prepárate…';
+        T(next, 900);
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
