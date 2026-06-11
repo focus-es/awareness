@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>El latido oculto · Awareness</title>
+<link rel="stylesheet" href="../../assets/awareness.css">
+</head>
+<body>
+<script src="../../assets/awareness.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // Parámetros por nivel: amplitud del pulso, irregularidad del periodo, partículas, ventana de sincronía, latidos a marcar
+  const LEVELS = [
+    { amp: 0.020, irr: 0.00, parts: 6,  win: 260, taps: 8  },
+    { amp: 0.016, irr: 0.08, parts: 10, win: 220, taps: 9  },
+    { amp: 0.013, irr: 0.15, parts: 14, win: 180, taps: 10 },
+    { amp: 0.011, irr: 0.22, parts: 18, win: 140, taps: 11 },
+    { amp: 0.009, irr: 0.30, parts: 24, win: 100, taps: 12 }
+  ];
+
+  Awareness.start({
+    id: 'latido-oculto',
+    title: 'El latido oculto',
+    tagline: 'El cristal late muy suavemente. Pulsa justo en el pico de su pulso.',
+    instructions: 'Observa el cristal sin forzar la mirada: tiene un pulso casi imperceptible. ' +
+      'Cuando sientas su ritmo, toca la pantalla (o pulsa <b>ESPACIO</b>) intentando coincidir con el ' +
+      '<b style="color:var(--accent)">momento de máxima expansión</b>. Las partículas solo flotan: déjalas pasar.',
+    levelHints: [
+      'Pulso perceptible y regular',
+      'Más sutil, con leve deriva',
+      'Periodo irregular: escucha, no calcules',
+      'Muy sutil, muchas distracciones',
+      'Casi invisible: pura percepción'
+    ],
+    metricLabels: {
+      sincronia: 'Sincronía %', desvio_ms: 'Desvío medio (ms)', tendencia: 'Tendencia',
+      estabilidad_ms: 'Variabilidad (ms)', racha: 'Mejor racha'
+    },
+    primaryMetric: 'sincronia',
+    game: {
+      start(ctx) {
+        const P = LEVELS[ctx.level - 1];
+        const st = ctx.stage;
+        let raf = 0, timers = [];
+        const T = (fn, ms) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+        ctx.cleanup(() => { cancelAnimationFrame(raf); timers.forEach(clearTimeout); });
+
+        // --- escena ---
+        let parts = '';
+        const pdata = [];
+        for (let i = 0; i < P.parts; i++) {
+          const px = 20 + ctx.rng() * 360, py = 20 + ctx.rng() * 260;
+          pdata.push({ x: px, y: py, r: 1 + ctx.rng() * 2.2, sp: 0.2 + ctx.rng() * (0.4 + ctx.level * 0.15), ph: ctx.rng() * 6.28 });
+          parts += '<circle class="pt" cx="' + px + '" cy="' + py + '" r="' + pdata[i].r.toFixed(1) +
+            '" fill="var(--accent)" opacity="' + (0.12 + ctx.rng() * 0.22).toFixed(2) + '"/>';
+        }
+        st.innerHTML =
+          '<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid meet" ' +
+          'style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true">' +
+          '<defs>' +
+          '<radialGradient id="halo" cx="50%" cy="50%" r="55%">' +
+          '<stop offset="0%" stop-color="var(--accent)" stop-opacity=".16"/>' +
+          '<stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/></radialGradient>' +
+          '<linearGradient id="cry" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0%" stop-color="#e8f2fb" stop-opacity=".95"/>' +
+          '<stop offset="45%" stop-color="var(--accent)" stop-opacity=".8"/>' +
+          '<stop offset="100%" stop-color="var(--accent2)" stop-opacity=".55"/></linearGradient>' +
+          '</defs>' +
+          // raíces serenas al fondo
+          '<path d="M0 285 Q90 255 200 278 Q310 298 400 270 L400 300 L0 300 Z" fill="var(--card)" opacity=".8"/>' +
+          '<path d="M150 285 Q170 240 165 205 M250 288 Q235 250 242 210" stroke="var(--border)" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+          parts +
+          '<g id="pulse" style="transform-origin:200px 150px">' +
+          '<circle cx="200" cy="150" r="95" fill="url(#halo)"/>' +
+          '<path d="M200 70 L238 110 L226 215 L174 215 L162 110 Z" fill="url(#cry)" stroke="var(--accent)" stroke-opacity=".4"/>' +
+          '<path d="M200 70 L200 215 M200 70 L238 110 M200 70 L162 110" stroke="#ffffff" stroke-opacity=".22" fill="none"/>' +
+          '</g>' +
+          '<circle id="ring" cx="200" cy="150" r="100" fill="none" stroke="var(--ok)" stroke-width="2" opacity="0" style="transform-origin:200px 150px"/>' +
+          '</svg>' +
+          '<div id="msg" style="position:absolute;top:10px;left:0;right:0;text-align:center;color:var(--dim);font-size:.9rem;pointer-events:none"></div>';
+        const pulse = st.querySelector('#pulse'), ring = st.querySelector('#ring'),
+              msg = st.querySelector('#msg');
+        const ptEls = st.querySelectorAll('.pt');
+
+        // --- estado del pulso ---
+        let phase = ctx.rng() * Math.PI * 2;
+        let period = 1500 + ctx.rng() * 1500;          // 1.5–3 s
+        let targetPeriod = period;
+        let last = performance.now();
+        let taps = 0, devs = [], streak = 0, bestStreak = 0, syncs = 0;
+        let lastTap = -1e9, running = true;
+
+        const hud = () => ctx.hud.set({
+          'Latido': Math.min(taps + 1, P.taps) + '/' + P.taps,
+          'Sincronías': syncs, 'Racha': streak
+        });
+
+        const wrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+
+        const loop = (now) => {
+          const dt = Math.min(50, now - last); last = now;
+          // deriva suave del periodo (niveles irregulares)
+          if (P.irr > 0 && Math.abs(period - targetPeriod) < 10) {
+            targetPeriod = 1500 + ctx.rng() * 1500;
+          }
+          period += (targetPeriod - period) * (dt / 4000) * P.irr * 4;
+          phase += dt / period * 2 * Math.PI;
+          if (phase > Math.PI * 2) phase -= Math.PI * 2;
+          const s = 1 + P.amp * Math.sin(phase);
+          pulse.style.transform = 'scale(' + s + ')';
+          // partículas
+          ptEls.forEach((el, i) => {
+            const d = pdata[i];
+            el.setAttribute('cx', (d.x + 18 * Math.sin(now / 4000 * d.sp + d.ph)).toFixed(1));
+            el.setAttribute('cy', (d.y + 12 * Math.cos(now / 5200 * d.sp + d.ph * 1.7)).toFixed(1));
+          });
+          if (running) raf = requestAnimationFrame(loop);
+        };
+        raf = requestAnimationFrame(loop);
+
+        const onTap = () => {
+          const now = performance.now();
+          if (!running || now - lastTap < 700) return;
+          lastTap = now;
+          // desvío respecto al pico (fase pi/2): negativo = anticipó
+          const delta = wrap(phase - Math.PI / 2);
+          const ms = Math.round(delta / (2 * Math.PI) * period);
+          devs.push(ms);
+          taps++;
+          const inWin = Math.abs(ms) <= P.win;
+          if (inWin) { syncs++; streak++; bestStreak = Math.max(bestStreak, streak); }
+          else streak = 0;
+          // feedback sutil: anillo que se expande
+          ring.setAttribute('stroke', inWin ? 'var(--ok)' : 'var(--dim)');
+          ring.style.transition = 'none';
+          ring.style.transform = 'scale(1)'; ring.style.opacity = '.7';
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            ring.style.transition = 'transform .9s ease-out, opacity .9s ease-out';
+            ring.style.transform = 'scale(1.45)'; ring.style.opacity = '0';
+          }));
+          msg.textContent = inWin ? 'En el latido.' : (ms < 0 ? 'Un instante antes…' : 'Un instante después…');
+          hud();
+          if (taps >= P.taps) { running = false; T(end, 900); }
+        };
+        const onKey = (e) => { if (e.code === 'Space') { e.preventDefault(); onTap(); } };
+        st.addEventListener('pointerdown', onTap);
+        window.addEventListener('keydown', onKey);
+        ctx.cleanup(() => window.removeEventListener('keydown', onKey));
+
+        const end = () => {
+          const n = devs.length || 1;
+          const absMean = Math.round(devs.reduce((a, b) => a + Math.abs(b), 0) / n);
+          const mean = devs.reduce((a, b) => a + b, 0) / n;
+          const sd = Math.round(Math.sqrt(devs.reduce((a, b) => a + (b - mean) * (b - mean), 0) / n));
+          const tend = Math.abs(mean) < 25 ? 'centrada' :
+            (mean < 0 ? 'anticipas ' + Math.abs(Math.round(mean)) + ' ms' : 'llegas ' + Math.round(mean) + ' ms tarde');
+          ctx.finish({
+            sincronia: Math.round(100 * syncs / n),
+            desvio_ms: absMean,
+            tendencia: tend,
+            estabilidad_ms: sd,
+            racha: bestStreak
+          });
+        };
+
+        hud();
+        msg.textContent = 'Observa. El cristal ya está latiendo…';
+        T(() => { if (running) msg.textContent = ''; }, 4000);
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
