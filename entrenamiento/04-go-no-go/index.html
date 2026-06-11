@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Go / No-Go · Awareness</title>
+<link rel="stylesheet" href="../../assets/awareness.css">
+</head>
+<body>
+<script src="../../assets/awareness.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // Parámetros por nivel: ritmo, % de no-go, parecido entre estímulos
+  const LEVELS = [
+    { isi: [1100, 1500], show: 900, nogoPct: .25, lure: 0, trials: 30 },
+    { isi: [900, 1300],  show: 750, nogoPct: .30, lure: 0, trials: 35 },
+    { isi: [750, 1100],  show: 620, nogoPct: .35, lure: .3, trials: 40 },
+    { isi: [600, 950],   show: 520, nogoPct: .40, lure: .6, trials: 45 },
+    { isi: [480, 800],   show: 430, nogoPct: .45, lure: 1, trials: 50 }
+  ];
+
+  Awareness.start({
+    id: 'go-no-go',
+    title: 'Go / No-Go',
+    tagline: 'Pulsa cuando aparezca el círculo. Quédate quieta ante el resto.',
+    instructions: 'Toca la pantalla (o pulsa ESPACIO) solo cuando veas el <b style="color:var(--ok)">círculo verde</b>. ' +
+      'Ante cualquier otra figura, no hagas nada. En niveles altos aparecen señales muy parecidas: no todo lo que parece un sí, lo es.',
+    levelHints: [
+      'Ritmo tranquilo, señales claras',
+      'Un poco más rápido',
+      'Aparecen señales engañosas',
+      'Rápido y con trampas frecuentes',
+      'Ritmo experto: solo la calma acierta'
+    ],
+    metricLabels: {
+      aciertos: 'Aciertos', impulsivos: 'Errores impulsivos', omisiones: 'Omisiones',
+      tr_medio_ms: 'Reacción media (ms)', racha: 'Mejor racha', precision: 'Precisión %'
+    },
+    primaryMetric: 'precision',
+    game: {
+      start(ctx) {
+        const P = LEVELS[ctx.level - 1];
+        const st = ctx.stage;
+        st.innerHTML =
+          '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">' +
+          '<svg id="fig" width="160" height="160" viewBox="0 0 160 160" style="opacity:0;transition:opacity .08s"></svg></div>' +
+          '<div id="msg" style="position:absolute;top:12px;left:0;right:0;text-align:center;color:var(--dim);font-size:.9rem"></div>';
+        const fig = st.querySelector('#fig');
+        const msg = st.querySelector('#msg');
+
+        let trial = 0, hits = 0, commissions = 0, omissions = 0, streak = 0, bestStreak = 0;
+        let rts = [], current = null, shownAt = 0, responded = false, timers = [];
+        const T = (fn, ms) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+        ctx.cleanup(() => timers.forEach(clearTimeout));
+
+        const GO = '<circle cx="80" cy="80" r="56" fill="#8fc9a8"/>';
+        const NOGO = [
+          '<rect x="28" y="28" width="104" height="104" rx="18" fill="#d98f8f"/>',
+          '<polygon points="80,22 138,128 22,128" fill="#d9c48f"/>',
+          '<rect x="28" y="28" width="104" height="104" rx="18" fill="#9d8fd9"/>'
+        ];
+        // Señuelos (nivel alto): círculo casi verde, o verde pero cuadrado
+        const LURES = [
+          '<circle cx="80" cy="80" r="56" fill="#a8c98f"/>',
+          '<rect x="28" y="28" width="104" height="104" rx="52" fill="#8fc9c4"/>',
+          '<circle cx="80" cy="80" r="56" fill="#8fb0c9"/>'
+        ];
+
+        const hud = () => ctx.hud.set({
+          Ronda: trial + '/' + P.trials, Aciertos: hits, Impulsos: commissions, Racha: streak
+        });
+
+        const respond = () => {
+          if (!current || responded) return;
+          responded = true;
+          const rt = Math.round(performance.now() - shownAt);
+          if (current === 'go') {
+            hits++; streak++; bestStreak = Math.max(bestStreak, streak); rts.push(rt);
+            st.classList.add('aw-flash-ok'); T(() => st.classList.remove('aw-flash-ok'), 380);
+          } else {
+            commissions++; streak = 0;
+            st.classList.add('aw-flash-bad'); T(() => st.classList.remove('aw-flash-bad'), 380);
+          }
+          hud();
+        };
+        const onKey = (e) => { if (e.code === 'Space') { e.preventDefault(); respond(); } };
+        st.addEventListener('pointerdown', respond);
+        window.addEventListener('keydown', onKey);
+        ctx.cleanup(() => window.removeEventListener('keydown', onKey));
+
+        const next = () => {
+          if (trial >= P.trials) return end();
+          trial++; hud();
+          const r = ctx.rng();
+          const isNogo = r < P.nogoPct;
+          const useLure = isNogo && ctx.rng() < P.lure;
+          current = isNogo ? 'nogo' : 'go';
+          fig.innerHTML = current === 'go' ? GO :
+            (useLure ? LURES[Math.floor(ctx.rng() * LURES.length)] : NOGO[Math.floor(ctx.rng() * NOGO.length)]);
+          responded = false;
+          shownAt = performance.now();
+          fig.style.opacity = 1;
+          T(() => {
+            fig.style.opacity = 0;
+            if (current === 'go' && !responded) { omissions++; streak = 0; hud(); }
+            current = null;
+            T(next, P.isi[0] + ctx.rng() * (P.isi[1] - P.isi[0]));
+          }, P.show);
+        };
+
+        const end = () => {
+          const total = hits + commissions + omissions;
+          const trMean = rts.length ? Math.round(rts.reduce((a, b) => a + b, 0) / rts.length) : 0;
+          ctx.finish({
+            aciertos: hits, impulsivos: commissions, omisiones: omissions,
+            tr_medio_ms: trMean, racha: bestStreak,
+            precision: total ? Math.round(100 * hits / total) : 0
+          });
+        };
+
+        msg.textContent = 'Prepárate…';
+        hud();
+        T(() => { msg.textContent = ''; next(); }, 1200);
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
