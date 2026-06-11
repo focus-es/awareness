@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Escucha el espacio · Awareness</title>
+<link rel="stylesheet" href="../../assets/awareness.css">
+</head>
+<body>
+<script src="../../assets/awareness.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // Parámetros por nivel: ensayos, duración del sonido (s),
+  // repeticiones permitidas por ensayo y rejilla de ángulos (0 = continuo).
+  const LEVELS = [
+    { trials: 8,  dur: 1.3,  replays: 2, step: 20 },
+    { trials: 9,  dur: 1.0,  replays: 1, step: 15 },
+    { trials: 10, dur: 0.75, replays: 1, step: 10 },
+    { trials: 10, dur: 0.55, replays: 0, step: 5 },
+    { trials: 12, dur: 0.4,  replays: 0, step: 0 }
+  ];
+
+  const MAXA = 80; // ángulo máximo a cada lado, en grados
+
+  Awareness.start({
+    id: 'escucha-el-espacio',
+    title: 'Escucha el espacio',
+    tagline: 'Escucha el tono y toca sobre el arco el punto exacto de donde vino.',
+    instructions: '🎧 <b>Usa auriculares</b>: el sonido se coloca en el espacio estéreo. ' +
+      'Tú estás en el centro, abajo. Sonará un tono suave en algún punto del arco; ' +
+      'cuando termine, toca dónde crees que estaba. Verás tu error en grados. ' +
+      'En niveles altos el sonido es más breve y no se puede repetir.',
+    levelHints: [
+      'Sonido largo y 2 repeticiones',
+      'Sonido de 1 segundo, 1 repetición',
+      'Posiciones más finas',
+      'Sonido breve, sin repetición',
+      'Un destello sonoro: solo un instante'
+    ],
+    metricLabels: {
+      error_medio: 'Error medio (°)', mejor: 'Mejor intento (°)', ensayos: 'Ensayos',
+      evolucion: '1ª mitad → 2ª mitad', puntuacion: 'Puntuación'
+    },
+    primaryMetric: 'puntuacion',
+    game: {
+      start(ctx) {
+        const P = LEVELS[ctx.level - 1];
+        const st = ctx.stage;
+
+        // Pantalla de activación de audio (requisito de los navegadores)
+        st.innerHTML =
+          '<div id="gate" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center">' +
+          '<div style="font-size:2rem">🎧</div>' +
+          '<div style="color:var(--dim);max-width:340px">Ponte auriculares: la posición del sonido es estéreo y sin ellos apenas se distingue.</div>' +
+          '<button id="act" class="aw-btn">Activar sonido</button>' +
+          '</div>';
+
+        let ac = null;
+        const timers = [];
+        const T = (fn, ms) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+        ctx.cleanup(() => timers.forEach(clearTimeout));
+        ctx.cleanup(() => { try { if (ac) ac.close(); } catch (e) {} });
+
+        let trial = 0, errors = [], best = null, replaysLeft = 0;
+        let phase = 'gate', trueAngle = 0, prevAngle = 999;
+        let sc, msg, sub, rep, mTrue, mGuess, ray;
+
+        const hud = () => {
+          const mean = errors.length ? Math.round(errors.reduce((a, b) => a + b, 0) / errors.length) : '—';
+          ctx.hud.set({
+            Ensayo: trial + '/' + P.trials,
+            'Error medio': mean === '—' ? '—' : mean + '°',
+            Mejor: best == null ? '—' : best + '°'
+          });
+        };
+
+        const pt = (a, r) => {
+          const rad = a * Math.PI / 180;
+          return [100 + r * Math.sin(rad), 112 - r * Math.cos(rad)];
+        };
+
+        const buildUI = () => {
+          let ticks = '';
+          for (let a = -MAXA; a <= MAXA; a += 20) {
+            const p1 = pt(a, 80), p2 = pt(a, 92);
+            ticks += '<line x1="' + p1[0].toFixed(1) + '" y1="' + p1[1].toFixed(1) +
+              '" x2="' + p2[0].toFixed(1) + '" y2="' + p2[1].toFixed(1) +
+              '" stroke="var(--border)" stroke-width="' + (a === 0 ? 1.6 : 0.8) + '"/>';
+          }
+          const A = pt(-MAXA, 86), B = pt(MAXA, 86);
+          st.innerHTML =
+            '<div id="msg" style="position:absolute;top:10px;left:0;right:0;text-align:center;color:var(--text);font-size:1.05rem;pointer-events:none"></div>' +
+            '<div id="sub" style="position:absolute;top:38px;left:0;right:0;text-align:center;color:var(--dim);font-size:.88rem;pointer-events:none"></div>' +
+            '<button id="rep" class="aw-btn sec" style="position:absolute;top:8px;right:8px;padding:12px 16px;font-size:.9rem;display:none">Repetir 🔁</button>' +
+            '<svg id="sc" viewBox="0 0 200 124" preserveAspectRatio="xMidYMax meet" ' +
+            'style="position:absolute;inset:0;width:100%;height:100%;padding:54px 6px 6px;box-sizing:border-box">' +
+            '<path d="M ' + A[0].toFixed(1) + ' ' + A[1].toFixed(1) + ' A 86 86 0 0 1 ' + B[0].toFixed(1) + ' ' + B[1].toFixed(1) + '" ' +
+            'fill="none" stroke="var(--card2)" stroke-width="13" stroke-linecap="round"/>' +
+            ticks +
+            '<text x="14" y="118" fill="var(--dim)" font-size="7">izquierda</text>' +
+            '<text x="160" y="118" fill="var(--dim)" font-size="7">derecha</text>' +
+            '<line id="ray" x1="100" y1="112" x2="100" y2="30" stroke="var(--accent2)" stroke-width="1" opacity="0"/>' +
+            '<circle id="mtrue" r="5.5" fill="var(--ok)" opacity="0"/>' +
+            '<circle id="mguess" r="5.5" fill="var(--accent)" opacity="0"/>' +
+            '<circle cx="100" cy="112" r="7" fill="var(--accent2)"/>' +
+            '<text x="100" y="114.5" text-anchor="middle" fill="#0e1420" font-size="6" font-weight="bold">TÚ</text>' +
+            '</svg>';
+          sc = st.querySelector('#sc');
+          msg = st.querySelector('#msg');
+          sub = st.querySelector('#sub');
+          rep = st.querySelector('#rep');
+          mTrue = st.querySelector('#mtrue');
+          mGuess = st.querySelector('#mguess');
+          ray = st.querySelector('#ray');
+          rep.onclick = () => {
+            if (phase !== 'answer' || replaysLeft <= 0) return;
+            replaysLeft--;
+            updateRep();
+            play(trueAngle, P.dur);
+          };
+          st.addEventListener('pointerdown', onTap);
+        };
+
+        const updateRep = () => {
+          if (P.replays <= 0) { rep.style.display = 'none'; return; }
+          rep.style.display = phase === 'answer' && replaysLeft > 0 ? 'block' : 'none';
+          rep.textContent = 'Repetir 🔁 ' + replaysLeft;
+        };
+
+        const play = (angle, dur) => {
+          const rad = angle * Math.PI / 180;
+          const t0 = ac.currentTime + 0.04;
+          const osc = ac.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(520, t0);
+          osc.frequency.exponentialRampToValueAtTime(430, t0 + dur);
+          const env = ac.createGain();
+          env.gain.setValueAtTime(0.0001, t0);
+          env.gain.linearRampToValueAtTime(0.5, t0 + 0.05);
+          env.gain.setValueAtTime(0.5, t0 + Math.max(0.06, dur - 0.18));
+          env.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+          const filt = ac.createBiquadFilter();
+          filt.type = 'lowpass';
+          // profundidad: los sonidos muy laterales llegan algo más apagados
+          filt.frequency.value = 2400 - Math.abs(Math.sin(rad)) * 800;
+          filt.Q.value = 0.4;
+          let pan;
+          if (ac.createStereoPanner) {
+            pan = ac.createStereoPanner();
+            pan.pan.value = Math.sin(rad);
+          } else {
+            pan = ac.createPanner();
+            pan.panningModel = 'equalpower';
+            pan.setPosition(Math.sin(rad), 0, Math.cos(rad));
+          }
+          const master = ac.createGain();
+          master.gain.value = 0.75 + 0.25 * Math.cos(rad); // leve caída lateral
+          osc.connect(env); env.connect(filt); filt.connect(pan); pan.connect(master);
+          master.connect(ac.destination);
+          osc.start(t0);
+          osc.stop(t0 + dur + 0.1);
+        };
+
+        const pickAngle = () => {
+          let a, tries = 0;
+          do {
+            if (P.step > 0) {
+              const n = Math.round(MAXA * 2 / P.step);
+              a = -MAXA + Math.round(ctx.rng() * n) * P.step;
+            } else {
+              a = -MAXA + ctx.rng() * MAXA * 2;
+            }
+            tries++;
+          } while (Math.abs(a - prevAngle) < (P.step > 0 ? P.step : 8) && tries < 20);
+          prevAngle = a;
+          return Math.max(-MAXA, Math.min(MAXA, a));
+        };
+
+        const nextTrial = () => {
+          if (trial >= P.trials) return end();
+          trial++;
+          hud();
+          phase = 'listen';
+          mTrue.setAttribute('opacity', 0);
+          mGuess.setAttribute('opacity', 0);
+          ray.setAttribute('opacity', 0);
+          msg.textContent = 'Escucha…';
+          msg.style.color = 'var(--text)';
+          sub.textContent = '';
+          replaysLeft = P.replays;
+          updateRep();
+          trueAngle = pickAngle();
+          play(trueAngle, P.dur);
+          T(() => {
+            phase = 'answer';
+            msg.textContent = '¿De dónde vino? Toca el arco';
+            updateRep();
+          }, (P.dur + 0.25) * 1000);
+        };
+
+        const onTap = (e) => {
+          if (phase !== 'answer') return;
+          if (e.target === rep) return;
+          const m = sc.getScreenCTM();
+          if (!m) return;
+          const p = sc.createSVGPoint();
+          p.x = e.clientX; p.y = e.clientY;
+          const q = p.matrixTransform(m.inverse());
+          const dx = q.x - 100, dy = 112 - q.y;
+          if (dy < 2 && Math.abs(dx) < 6) return; // sobre el propio oyente
+          let guess = Math.atan2(dx, Math.max(dy, 0.01)) * 180 / Math.PI;
+          guess = Math.max(-MAXA, Math.min(MAXA, guess));
+          phase = 'fb';
+          updateRep();
+          const err = Math.round(Math.abs(guess - trueAngle));
+          errors.push(err);
+          if (best == null || err < best) best = err;
+          const pg = pt(guess, 86), pv = pt(trueAngle, 86);
+          mGuess.setAttribute('cx', pg[0]); mGuess.setAttribute('cy', pg[1]); mGuess.setAttribute('opacity', 1);
+          mTrue.setAttribute('cx', pv[0]); mTrue.setAttribute('cy', pv[1]); mTrue.setAttribute('opacity', 1);
+          ray.setAttribute('x2', pv[0]); ray.setAttribute('y2', pv[1]); ray.setAttribute('opacity', 0.55);
+          if (err <= 18) {
+            st.classList.add('aw-flash-ok'); T(() => st.classList.remove('aw-flash-ok'), 380);
+            msg.style.color = 'var(--ok)';
+          } else {
+            msg.style.color = 'var(--text)';
+          }
+          msg.textContent = 'Error: ' + err + '°';
+          sub.textContent = 'Verde = posición real · Azul = tu respuesta';
+          hud();
+          T(nextTrial, 1700);
+        };
+
+        const end = () => {
+          const mean = errors.length ? errors.reduce((a, b) => a + b, 0) / errors.length : 0;
+          const half = Math.floor(errors.length / 2);
+          const m1 = half ? errors.slice(0, half).reduce((a, b) => a + b, 0) / half : 0;
+          const m2 = half ? errors.slice(half).reduce((a, b) => a + b, 0) / (errors.length - half) : 0;
+          ctx.finish({
+            error_medio: Math.round(mean),
+            mejor: best == null ? 0 : best,
+            ensayos: errors.length,
+            evolucion: Math.round(m1) + '° → ' + Math.round(m2) + '°',
+            puntuacion: Math.max(0, 100 - Math.round(mean * 1.25))
+          });
+        };
+
+        st.querySelector('#act').onclick = () => {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) {
+            st.querySelector('#gate').innerHTML =
+              '<div style="color:var(--bad)">Este navegador no soporta WebAudio.</div>';
+            return;
+          }
+          ac = new AC();
+          if (ac.resume) ac.resume();
+          buildUI();
+          hud();
+          msg.textContent = 'Prepárate…';
+          play(0, 0.5); // tono de confirmación, centrado
+          T(nextTrial, 1300);
+        };
+
+        hud();
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
