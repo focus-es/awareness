@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>El eco de los sentidos · Awareness</title>
+<link rel="stylesheet" href="../../assets/awareness.css">
+</head>
+<body>
+<script src="../../assets/awareness.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // Parámetros por nivel: ensayos únicos, repetidos, nº de opciones, zona de timbres, aspereza, opciones de palabra
+  const LEVELS = [
+    { uniq: 7,  rep: 3, opts: 3, mid: 0.00, rough: 0,   words: 0   },
+    { uniq: 8,  rep: 3, opts: 3, mid: 0.20, rough: 0,   words: 0.3 },
+    { uniq: 8,  rep: 4, opts: 3, mid: 0.45, rough: 0,   words: 0.4 },
+    { uniq: 9,  rep: 4, opts: 4, mid: 0.55, rough: 0.5, words: 0.5 },
+    { uniq: 10, rep: 4, opts: 4, mid: 0.70, rough: 1,   words: 0.5 }
+  ];
+
+  // Palabras con su posición en el eje grave-redondo (0) ↔ agudo-afilado (1)
+  const WORDS = [
+    ['profundo', 0.05], ['redondo', 0.12], ['pesado', 0.18], ['suave', 0.28],
+    ['cálido', 0.38], ['ligero', 0.68], ['brillante', 0.78], ['chispeante', 0.88], ['afilado', 0.95]
+  ];
+
+  Awareness.start({
+    id: 'eco-de-los-sentidos',
+    title: 'El eco de los sentidos',
+    tagline: 'No pienses la respuesta. Siente qué transmite.',
+    instructions: 'Sonará un sonido breve con un carácter propio. Después, elige la opción ' +
+      '(forma o palabra) que <b style="color:var(--accent)">transmita lo mismo</b>. No hay lógica que aplicar: ' +
+      'deja que tus sentidos se traduzcan entre sí. Puedes volver a escuchar el sonido si lo necesitas.',
+    levelHints: [
+      'Caracteres muy marcados',
+      'Aparecen palabras entre las opciones',
+      'Timbres intermedios, menos obvios',
+      'Cuatro opciones y texturas mezcladas',
+      'Dimensiones cruzadas: oído fino'
+    ],
+    metricLabels: {
+      coherencia: 'Coherencia crossmodal %', alineadas: 'Elecciones alineadas',
+      rapidez_s: 'Rapidez media (s)', consistencia: 'Consistencia interna %'
+    },
+    primaryMetric: 'coherencia',
+    game: {
+      start(ctx) {
+        const P = LEVELS[ctx.level - 1];
+        const st = ctx.stage;
+        let timers = [], audio = null, master = null;
+        const T = (fn, ms) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+        ctx.cleanup(() => {
+          timers.forEach(clearTimeout);
+          if (audio) { try { audio.close(); } catch (e) {} }
+        });
+
+        // --- síntesis: s = 0 grave/redondo/legato … 1 agudo/brillante/staccato ---
+        const playSound = (snd) => {
+          if (!audio) return;
+          const t = audio.currentTime + 0.03;
+          const freq = 120 * Math.pow(2, snd.s * 2.9);            // ~120–900 Hz
+          const attack = 0.16 - snd.s * 0.15;                      // legato ↔ staccato
+          const dur = 0.95 - snd.s * 0.6;
+          const o1 = audio.createOscillator(); o1.type = 'sine'; o1.frequency.value = freq;
+          const o2 = audio.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = freq;
+          const g1 = audio.createGain(); g1.gain.value = 1 - snd.s * 0.55;     // cuerpo redondo
+          const g2 = audio.createGain(); g2.gain.value = 0.05 + snd.s * 0.30;  // brillo
+          const flt = audio.createBiquadFilter(); flt.type = 'lowpass';
+          flt.frequency.value = 500 + snd.s * 4500;
+          const env = audio.createGain();
+          env.gain.setValueAtTime(0.0001, t);
+          env.gain.exponentialRampToValueAtTime(0.35, t + Math.max(0.006, attack));
+          env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+          o1.connect(g1); o2.connect(g2); g1.connect(flt); g2.connect(flt);
+          flt.connect(env); env.connect(master);
+          // aspereza opcional: modulación AM rápida
+          if (snd.r > 0.05) {
+            const lfo = audio.createOscillator(); lfo.frequency.value = 26 + snd.r * 18;
+            const lg = audio.createGain(); lg.gain.value = snd.r * 0.5;
+            lfo.connect(lg); lg.connect(env.gain);
+            lfo.start(t); lfo.stop(t + dur + 0.1);
+          }
+          o1.start(t); o2.start(t);
+          o1.stop(t + dur + 0.1); o2.stop(t + dur + 0.1);
+        };
+
+        // --- visual: forma con score v (0 redondo-grande-oscuro … 1 puntiagudo-pequeño-brillante) ---
+        const shapeSVG = (v, seed) => {
+          const cx = 100, cy = 100;
+          const R = 62 - v * 26;                                   // grave = grande
+          const spikes = Math.round(5 + v * 7);
+          const jag = v * 0.85;                                    // puntiagudez
+          let pts = '';
+          const n = spikes * 2;
+          for (let i = 0; i < n; i++) {
+            const a = (i / n) * Math.PI * 2 + seed;
+            const rr = i % 2 === 0 ? R : R * (1 - jag * 0.55 - 0.05);
+            pts += (cx + rr * Math.cos(a)).toFixed(1) + ',' + (cy + rr * Math.sin(a)).toFixed(1) + ' ';
+          }
+          const light = Math.round(30 + v * 55);                   // brillo
+          const fill = 'hsl(' + Math.round(210 - v * 25) + ',45%,' + light + '%)';
+          if (v < 0.3) {
+            // blob redondeado
+            return '<svg viewBox="0 0 200 200" width="100%" height="100%" aria-hidden="true">' +
+              '<ellipse cx="100" cy="104" rx="' + R + '" ry="' + (R * 0.9).toFixed(0) +
+              '" fill="' + fill + '" opacity=".9"/>' +
+              '<ellipse cx="88" cy="88" rx="' + (R * 0.32).toFixed(0) + '" ry="' + (R * 0.22).toFixed(0) +
+              '" fill="#ffffff" opacity=".12"/></svg>';
+          }
+          return '<svg viewBox="0 0 200 200" width="100%" height="100%" aria-hidden="true">' +
+            '<polygon points="' + pts + '" fill="' + fill + '" opacity=".92" ' +
+            'stroke="#ffffff" stroke-opacity="' + (v * 0.35).toFixed(2) + '" stroke-width="1"/></svg>';
+        };
+
+        // --- construir ensayos ---
+        const zone = () => {
+          // s extremo o intermedio según nivel
+          if (ctx.rng() < P.mid) return 0.3 + ctx.rng() * 0.4;
+          return ctx.rng() < 0.5 ? ctx.rng() * 0.18 : 0.82 + ctx.rng() * 0.18;
+        };
+        const uniques = [];
+        for (let i = 0; i < P.uniq; i++) {
+          uniques.push({ id: i, s: zone(), r: ctx.rng() < P.rough * 0.6 ? 0.4 + ctx.rng() * 0.6 : 0 });
+        }
+        const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(ctx.rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+        const seq = shuffle(uniques.map(u => ({ snd: u, repeat: false })));
+        seq.push(...shuffle(shuffle(uniques.slice()).slice(0, P.rep).map(u => ({ snd: u, repeat: true }))));
+        const total = seq.length;
+
+        // opciones por sonido (fijas entre repeticiones para medir consistencia)
+        const optionsFor = (snd) => {
+          const r = (() => { let a = snd.id * 7919 + 13; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; })();
+          const opts = [];
+          // 1 opción cercana al canon + resto repartidas lejos
+          const near = Math.max(0, Math.min(1, snd.s + (r() - 0.5) * 0.16));
+          opts.push(near);
+          const step = 1 / P.opts;
+          while (opts.length < P.opts) {
+            let v = r();
+            if (Math.abs(v - snd.s) < step * 0.8) v = (snd.s + 0.5 + r() * 0.3) % 1;
+            opts.push(Math.max(0, Math.min(1, v)));
+          }
+          return opts.map((v, i) => {
+            const asWord = r() < P.words;
+            if (asWord) {
+              let best = WORDS[0];
+              WORDS.forEach(w => { if (Math.abs(w[1] - v) < Math.abs(best[1] - v)) best = w; });
+              return { id: i, v: best[1], word: best[0], seed: r() * 6.28 };
+            }
+            return { id: i, v, word: null, seed: r() * 6.28 };
+          });
+        };
+
+        // --- UI ---
+        st.innerHTML =
+          '<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:16px">' +
+          '<div id="intro" style="text-align:center;color:var(--text);font-size:1.1rem;max-width:480px">' +
+          'Necesitamos activar el sonido.<br><span style="color:var(--dim);font-size:.92rem">Mejor con auriculares.</span></div>' +
+          '<button id="go" class="aw-btn" style="min-height:56px">Activar sonido</button>' +
+          '</div>';
+
+        let idx = 0, locked = false, soundAt = 0;
+        let cohSum = 0, aligned = 0, answered = 0, rts = [];
+        const firstPick = {};                   // sndId -> optId
+        const consist = { same: 0, seen: 0 };
+
+        const hud = () => ctx.hud.set({ 'Sonido': Math.min(idx + 1, total) + '/' + total, 'Escuchadas': answered });
+
+        const trial = () => {
+          if (idx >= total) return end();
+          locked = false; hud();
+          const it = seq[idx], snd = it.snd;
+          const opts = shuffle(optionsFor(snd).slice());
+          st.innerHTML =
+            '<div style="position:absolute;inset:0;display:flex;flex-direction:column;padding:12px;gap:10px">' +
+            '<div style="text-align:center;color:var(--dim);font-size:.92rem">¿Qué transmite lo mismo que este sonido?</div>' +
+            '<div style="text-align:center"><button id="replay" class="aw-btn sec" style="min-height:48px;padding:10px 22px">♪ Volver a oír</button></div>' +
+            '<div id="opts" style="flex:1;display:flex;gap:10px;align-items:stretch;justify-content:center;flex-wrap:wrap"></div></div>';
+          const box = st.querySelector('#opts');
+          st.querySelector('#replay').onclick = () => playSound(snd);
+          opts.forEach(op => {
+            const b = document.createElement('button');
+            b.style.cssText = 'flex:1;min-width:110px;max-width:220px;min-height:150px;border-radius:16px;' +
+              'border:1px solid var(--border);background:var(--card);cursor:pointer;padding:10px;' +
+              'display:flex;align-items:center;justify-content:center;transition:border-color .2s, box-shadow .3s;' +
+              'touch-action:manipulation;color:var(--text);font-size:1.15rem';
+            b.innerHTML = op.word ? '<span>' + op.word + '</span>' : shapeSVG(op.v, op.seed);
+            b.onpointerdown = () => pick(it, op, b);
+            box.appendChild(b);
+          });
+          T(() => { playSound(snd); soundAt = performance.now(); }, 350);
+        };
+
+        const pick = (it, op, btn) => {
+          if (locked) return;
+          locked = true;
+          const snd = it.snd;
+          answered++;
+          rts.push(performance.now() - soundAt);
+          const align = Math.max(0, 1 - Math.abs(op.v - snd.s));
+          cohSum += align;
+          if (Math.abs(op.v - snd.s) < 0.25) aligned++;
+          if (it.repeat && firstPick[snd.id] != null) {
+            consist.seen++;
+            if (firstPick[snd.id] === op.id) consist.same++;
+          } else if (firstPick[snd.id] == null) {
+            firstPick[snd.id] = op.id;
+          }
+          btn.style.borderColor = 'var(--accent)';
+          btn.style.boxShadow = '0 0 22px rgba(127,180,217,.35)';
+          T(() => { idx++; trial(); }, 600);
+        };
+
+        const end = () => {
+          const rtMean = rts.length ? (rts.reduce((a, b) => a + b, 0) / rts.length / 1000) : 0;
+          ctx.finish({
+            coherencia: answered ? Math.round(100 * cohSum / answered) : 0,
+            alineadas: aligned + '/' + answered,
+            rapidez_s: rtMean.toFixed(1),
+            consistencia: consist.seen ? Math.round(100 * consist.same / consist.seen) : 100
+          });
+        };
+
+        st.querySelector('#go').onclick = () => {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) { st.querySelector('#intro').textContent = 'Tu navegador no soporta WebAudio.'; return; }
+          audio = new AC();
+          master = audio.createGain(); master.gain.value = 0.8; master.connect(audio.destination);
+          if (audio.state === 'suspended') audio.resume();
+          hud();
+          trial();
+        };
+        hud();
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
