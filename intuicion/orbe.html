@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>El Orbe · Visión Intuitiva</title>
+<style>
+  :root{
+    --bg1:#0b0a1a; --bg2:#161033; --bg3:#1d1340;
+    --ink:#ece9ff; --soft:#a9a3d6; --accent:#b794ff;
+    --listen:#5be0a8; --speak:#b794ff; --think:#ffd27a;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Segoe UI",-apple-system,system-ui,sans-serif;
+    color:var(--ink);
+    background:radial-gradient(circle at 50% 35%,var(--bg3),var(--bg2) 45%,var(--bg1) 100%);
+    min-height:100dvh; display:flex; flex-direction:column; align-items:center;
+    overflow-x:hidden; transition:background 2s ease;
+  }
+  body.fase-calma{--accent:#8fb8ff}
+  body.fase-color{--accent:#b794ff}
+  body.fase-emocion{--accent:#ff9ec4}
+  body.fase-revelar{--accent:#ffd27a}
+
+  .top{width:100%; display:flex; justify-content:space-between; align-items:center; padding:14px 18px;}
+  .marca{font-size:14px; letter-spacing:3px; color:var(--soft); text-transform:uppercase}
+  .ctrls{display:flex; gap:8px}
+  .ctrls button{
+    background:rgba(255,255,255,.06); color:var(--soft); border:1px solid rgba(255,255,255,.12);
+    border-radius:20px; padding:7px 12px; font-size:13px; cursor:pointer; transition:.2s;
+  }
+  .ctrls button:hover{background:rgba(255,255,255,.12); color:var(--ink)}
+  .ia-on{color:#0b0a1a !important; background:var(--listen) !important; border-color:var(--listen) !important}
+
+  .escena{flex:1; width:100%; max-width:680px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:10px 22px 30px; text-align:center}
+
+  .orbe-wrap{position:relative; width:240px; height:240px; display:flex; align-items:center; justify-content:center; margin:6px 0 22px}
+  .halo{position:absolute; inset:-30px; border-radius:50%;
+    background:radial-gradient(circle,var(--accent) 0%,transparent 62%); opacity:.30; filter:blur(14px);
+    animation:resp 7s ease-in-out infinite}
+  .orbe{position:relative; width:150px; height:150px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #fff 0%, var(--accent) 40%, #5a3aa8 100%);
+    box-shadow:0 0 50px var(--accent), inset 0 0 40px rgba(255,255,255,.35);
+    animation:resp 7s ease-in-out infinite}
+  @keyframes resp{0%,100%{transform:scale(1)}50%{transform:scale(1.09)}}
+  @keyframes giro{to{transform:rotate(360deg)}}
+  body.estado-escucha .orbe{--accent:var(--listen); animation:resp 4s ease-in-out infinite}
+  body.estado-escucha .halo{opacity:.5}
+  body.estado-habla .orbe{animation:resp 2.4s ease-in-out infinite}
+  body.estado-piensa .orbe{animation:giro 2.2s linear infinite}
+
+  .estado-txt{font-size:13px; letter-spacing:2px; text-transform:uppercase; color:var(--soft); min-height:18px; margin-bottom:14px}
+  .dialogo{font-size:22px; line-height:1.5; font-weight:300; max-width:560px; min-height:90px; color:var(--ink)}
+  .dialogo .yo{display:block; margin-top:12px; font-size:15px; color:var(--soft); font-style:italic}
+
+  .barra{margin-top:26px; display:flex; flex-direction:column; gap:12px; align-items:center; width:100%}
+  .principal{
+    background:linear-gradient(120deg,var(--accent),#7d5cff); color:#0b0a1a; font-weight:600;
+    border:none; border-radius:30px; padding:15px 40px; font-size:17px; cursor:pointer;
+    box-shadow:0 6px 24px rgba(150,110,255,.5); transition:.2s}
+  .principal:hover{transform:translateY(-2px)}
+  .principal:disabled{opacity:.4; cursor:default; transform:none}
+  .secundarios{display:flex; gap:10px; flex-wrap:wrap; justify-content:center}
+  .secundarios button{background:rgba(255,255,255,.06); color:var(--soft); border:1px solid rgba(255,255,255,.14);
+    border-radius:22px; padding:9px 16px; font-size:14px; cursor:pointer}
+  .secundarios button:hover{color:var(--ink)}
+  .secundarios button:disabled{opacity:.35; cursor:default}
+  .escribir{display:flex; gap:8px; width:100%; max-width:480px; margin-top:4px}
+  .escribir input{flex:1; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.16);
+    color:var(--ink); border-radius:22px; padding:11px 16px; font-size:15px; outline:none}
+  .escribir button{background:var(--accent); border:none; color:#0b0a1a; border-radius:22px; padding:0 18px; cursor:pointer; font-weight:600}
+
+  .aviso{background:rgba(255,180,90,.14); border:1px solid rgba(255,180,90,.4); color:#ffd9a8;
+    border-radius:12px; padding:12px 16px; font-size:14px; max-width:520px; margin-top:14px; line-height:1.5}
+
+  .revelacion{margin-top:18px; max-width:560px; width:100%; display:none}
+  .revelacion img{width:100%; border-radius:16px; box-shadow:0 10px 40px rgba(0,0,0,.5); background:#000}
+  .revelacion .desc{margin-top:14px; font-size:16px; line-height:1.6; color:var(--soft); text-align:left}
+  .revelacion .num{font-size:13px; letter-spacing:2px; color:var(--think); text-transform:uppercase; margin-bottom:10px}
+
+  /* modal clave */
+  .modal{position:fixed; inset:0; background:rgba(5,4,16,.8); display:none; align-items:center; justify-content:center; padding:20px; z-index:20}
+  .modal .caja{background:var(--bg2); border:1px solid rgba(255,255,255,.14); border-radius:18px; padding:26px; max-width:460px; width:100%}
+  .modal h3{margin-bottom:10px; font-weight:500}
+  .modal p{color:var(--soft); font-size:14px; line-height:1.6; margin-bottom:14px}
+  .modal input{width:100%; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.18); color:var(--ink); border-radius:10px; padding:11px 14px; font-size:14px; margin-bottom:14px; outline:none}
+  .modal .fila{display:flex; gap:10px; justify-content:flex-end}
+  .modal .fila button{border-radius:10px; padding:10px 18px; border:none; cursor:pointer; font-size:14px}
+  .modal .ok{background:var(--listen); color:#06210f; font-weight:600}
+  .modal .no{background:rgba(255,255,255,.08); color:var(--soft)}
+  .modal a{color:var(--accent)}
+</style>
+</head>
+<body class="fase-calma">
+
+  <div class="top">
+    <div class="marca">El Orbe · Visión Intuitiva</div>
+    <div class="ctrls">
+      <button id="btnVoz" title="Silenciar / activar voz">🔊 Voz</button>
+      <button id="btnIA" title="Activar IA fluida con tu clave">IA: —</button>
+    </div>
+  </div>
+
+  <div class="escena">
+    <div class="orbe-wrap">
+      <div class="halo"></div>
+      <div class="orbe"></div>
+    </div>
+
+    <div class="estado-txt" id="estado">Cuando quieras, nos preparamos.</div>
+    <div class="dialogo" id="dialogo">Hola. Soy tu orbe. Te acompañaré a percibir una imagen que tú no ves. Ponte cómoda, y cuando estés lista, pulsa <strong>Comenzar</strong>.</div>
+
+    <div id="aviso" class="aviso" style="display:none"></div>
+
+    <div class="barra">
+      <button class="principal" id="btnComenzar">Comenzar</button>
+      <div class="secundarios">
+        <button id="btnDesvelar" disabled>Desvelar imagen</button>
+        <button id="btnNueva" style="display:none">Nueva sesión</button>
+      </div>
+      <div class="escribir" id="escribirWrap" style="display:none">
+        <input id="entrada" placeholder="…o escribe lo que percibes" autocomplete="off">
+        <button id="btnEnviar">Enviar</button>
+      </div>
+    </div>
+
+    <div class="revelacion" id="revelacion">
+      <div class="num" id="revNum"></div>
+      <img id="revImg" alt="imagen revelada">
+      <div class="desc" id="revDesc"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="modalIA">
+    <div class="caja">
+      <h3>IA fluida (opcional)</h3>
+      <p><strong>Tu clave es solo tuya.</strong> Se guarda únicamente en este navegador y en este dispositivo. <strong>No se escribe dentro del archivo</strong>: si compartes el .html o el enlace, nadie recibe tu clave — las demás personas usan el modo gratis y solo tú tienes IA. Nadie puede gastar de tu cuenta.<br><br>La consigues en <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys. Se factura aparte (céntimos por sesión).</p>
+      <input id="inputClave" type="password" placeholder="sk-ant-..." autocomplete="off">
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--soft);margin-bottom:14px;cursor:pointer">
+        <input type="checkbox" id="recordarClave" checked> Recordar la clave en este equipo (desmárcalo en ordenadores compartidos)
+      </label>
+      <div class="fila">
+        <button class="no" id="claveQuitar">Quitar clave</button>
+        <button class="ok" id="claveGuardar">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ============================================================
+   BANCO DE IMÁGENES
+   - url: las 20 reales de tu Drive (ya conectadas).
+   - descripcion / colores / claves: rellénalas con tu archivo
+     "descripcion imagenes 1 a 20". Sin ellas, el orbe guía igual
+     de bien, pero la validación por aproximación y el modo IA
+     son más precisos cuando están completas.
+   ============================================================ */
+const DRIVE = id => `https://drive.google.com/thumbnail?id=${id}&sz=w1000`;
+
+const BANCO = [
+  {id:1,  url:DRIVE("1wbA6wBlfTLUlyeuL2YWqCwciH3kPiL8e"), titulo:"Árbol con raíces grandes",
+   descripcion:"La base de un árbol muy viejo y enorme. El tronco es ancho y de él bajan raíces gruesas que se abren hacia los lados como dedos agarrados a la tierra. En el centro, justo en la base, se abre un hueco oscuro, como una pequeña cueva o boca. La corteza es rugosa, marrón rojiza, con manchas de musgo verde. Abajo, tierra oscura y algo de hierba. Transmite fuerza, raigambre, mucha edad y un punto de misterio por ese hueco negro.",
+   colores:["marrón","rojizo","verde","ocre","negro"], viva:true, movimiento:false, entorno:"exterior, naturaleza",
+   claves:["árbol","tronco","raíces","raíz","hueco","cueva","oscuridad","corteza","musgo","verde","marrón","rojizo","rugoso","viejo","ancho","vertical","fuerza","estabilidad","tierra","hierba","grande"]},
+  {id:2,  url:DRIVE("1qUXgmFpOIyWsx0QYDDjRHNSs8XK43LXK"), titulo:"Caracol sobre superficie turquesa",
+   descripcion:"Un caracol pequeño con la concha en espiral muy marcada, amarilla con una línea oscura que gira con ella. Está sobre una superficie de madera pintada de turquesa, algo desgastada. Alrededor hay hojas secas de helecho, marrones. El amarillo brillante contrasta con el azul verdoso del fondo. Forma redonda y enroscada; sensación de lentitud, calma, pequeñez y humedad.",
+   colores:["amarillo","turquesa","azul","verde","marrón"], viva:true, movimiento:true, entorno:"exterior",
+   claves:["caracol","concha","espiral","círculo","redondo","curva","amarillo","turquesa","azul","verde","marrón","hojas","helecho","seco","madera","lento","pequeño","calma","humedad"]},
+  {id:3,  url:DRIVE("1H42n_VZVJYpuuY5rBxiTGoGFco3UduTZ"), titulo:"Faro en isla",
+   descripcion:"Un faro blanco, alto y vertical, en lo alto de una isla rocosa con algo de hierba verde. Alrededor, el mar azul grisáceo, tranquilo, y un cielo pálido nublado. Mucho horizonte y espacio abierto. El faro es el único elemento claro y recto en medio de la amplitud. Sensación de soledad, calma, verticalidad y grandeza serena.",
+   colores:["blanco","azul","gris","verde"], viva:false, movimiento:false, entorno:"exterior",
+   claves:["faro","torre","isla","roca","mar","agua","cielo","horizonte","blanco","azul","gris","verde","hierba","vertical","alto","recto","soledad","amplitud","calma"]},
+  {id:4,  url:DRIVE("1RikKRnR_2gm5RGI97ZIrkd_mHzphiSJt"), titulo:"Hojas de otoño",
+   descripcion:"Toda la imagen está llena de hojas de otoño caídas, sobre todo de arce, con sus puntas en forma de estrella. Se solapan unas con otras sin dejar hueco. Colores cálidos: amarillo, naranja, rojo y marrón. Textura seca y crujiente. No hay un centro ni un protagonista, es un patrón repetido y cálido, como una alfombra.",
+   colores:["amarillo","naranja","rojo","marrón","ocre"], viva:false, movimiento:false, entorno:"exterior",
+   claves:["hojas","otoño","arce","puntas","estrella","amarillo","naranja","rojo","marrón","seco","crujiente","suelo","alfombra","lleno","repetición","patrón","cálido"]},
+  {id:5,  url:DRIVE("1l3_Q5hyqhsc-jKpnTBPrB70014KcMIwn"), titulo:"Pájaro entre flores",
+   descripcion:"Una abubilla: un pájaro con una cresta naranja abierta en abanico, con las puntas negras, y alas a rayas blancas y negras. Está sobre una piedra, entre flores silvestres amarillas y algunas moradas-azuladas. El fondo es amarillo verdoso, suave y desenfocado. Parece atrapar un insecto en el pico. Mucha vida, color, ligereza y delicadeza primaveral.",
+   colores:["naranja","amarillo","negro","blanco","violeta","azul","verde"], viva:true, movimiento:true, entorno:"exterior",
+   claves:["pájaro","ave","abubilla","cresta","abanico","plumas","rayas","flores","amarillo","naranja","negro","blanco","violeta","morado","verde","piedra","vida","ligereza","primavera","delicado","equilibrio"]},
+  {id:6,  url:DRIVE("1yHfFNW8wkTnNCE99QI6VKbKD42huIUZZ"), titulo:"Playa con atardecer",
+   descripcion:"Una playa al atardecer. El sol está bajo, naranja y dorado, reflejándose en el mar en un camino de luz sobre las olas. El cielo tiene nubes encendidas. En la arena dorada del primer plano hay un corazón dibujado y unas huellas de pies. Sensación muy emocional: calma, amor, calidez, romanticismo y final del día.",
+   colores:["naranja","dorado","azul","rosa","amarillo"], viva:false, movimiento:true, entorno:"exterior",
+   claves:["playa","atardecer","sol","mar","olas","agua","arena","corazón","huellas","cielo","nubes","reflejo","luz","naranja","dorado","azul","rosa","cálido","amor","calma","emoción","horizonte"]},
+  {id:7,  url:DRIVE("1nAOMnwKZjuUkmNM_ZXuqu-u_360sPt4I"), titulo:"Perro corriendo con palo",
+   descripcion:"Un perro beagle corriendo de frente hacia nosotros por la hierba verde y brillante. Lleva un palo grande cruzado en la boca y las orejas al viento. Es blanco con manchas marrones y negras, con un collar rojo. La cara parece sonreír. Todo es movimiento, energía, alegría y juego al aire libre.",
+   colores:["marrón","blanco","negro","verde","rojo"], viva:true, movimiento:true, entorno:"exterior",
+   claves:["perro","beagle","palo","rama","correr","movimiento","hierba","césped","verde","marrón","blanco","negro","collar","rojo","orejas","energía","juego","alegría","acción","velocidad"]},
+  {id:8,  url:DRIVE("1O0VWXKeRtOm9IVfxqXpMOUZY6-INAwJo"), titulo:"Puesto de frutas y verduras",
+   descripcion:"Un puesto de mercado con cajas de madera llenas de fruta y verdura, ordenadas en cuadrícula. Se ven guisantes verdes, manzanas rojas, patatas, tomates, limones, melones y cebollas, con etiquetas de precio escritas a mano. Muchísimos colores y secciones. Sensación de abundancia, variedad y repetición ordenada.",
+   colores:["verde","rojo","amarillo","naranja","marrón"], viva:false, movimiento:false, entorno:"mercado",
+   claves:["frutas","verduras","mercado","puesto","cajas","madera","manzanas","tomates","patatas","limones","cebollas","guisantes","verde","rojo","amarillo","marrón","etiquetas","abundancia","secciones","cuadrícula","repetición","variedad"]},
+  {id:9,  url:DRIVE("1dgxXrk00RuSYiJdc5CYgPXCDd0DEx49f"), titulo:"Cisne en el agua",
+   descripcion:"Un cisne blanco flotando en agua azul oscura con suaves ondas. Curva el cuello hacia abajo formando una línea elegante, casi un corazón con su reflejo. El pico es naranja rojizo. Se ve su reflejo en el agua. Movimiento muy lento y suave; sensación de elegancia, calma, pureza y silencio.",
+   colores:["blanco","azul","naranja","gris"], viva:true, movimiento:true, entorno:"exterior",
+   claves:["cisne","ave","pájaro","agua","reflejo","ondas","cuello","curva","blanco","azul","naranja","pico","elegante","calma","suave","lento","pureza","silencio","gracia"]},
+  {id:10, url:DRIVE("1CCL1kz7ceLb-UV8zncwwXp_h-L92TLF-"), titulo:"Cactus",
+   descripcion:"El primer plano de la parte de arriba de un cactus verde, redondeado, lleno de espinas largas, grises y blancas, que salen en todas direcciones como estrellas. El fondo es liso, de color rosa salmón suave. Contraste entre lo agresivo de los pinchos y lo dulce del fondo. Sensación de defensa, protección, rigidez y peligro fino.",
+   colores:["verde","rosa","gris","beige"], viva:true, movimiento:false, entorno:"neutro",
+   claves:["cactus","planta","pinchos","espinas","púas","agujas","verde","rosa","salmón","gris","beige","punta","redondo","estrella","defensa","protección","rígido","afilado","peligro","desierto"]},
+  {id:11, url:DRIVE("1bAW172DNB4egWHP_odBHXXaIsMOBp60G"), titulo:"Hoja verde (macro)",
+   descripcion:"El detalle muy ampliado de una hoja verde a contraluz. Se ven con nitidez las nervaduras, que se ramifican como ríos o como un árbol, y la red de pequeñas celdas entre ellas. Verde intenso y luminoso, con las venas en marrón. Textura orgánica, patrón natural, sensación de vida, luz y naturaleza por dentro.",
+   colores:["verde","marrón"], viva:true, movimiento:false, entorno:"neutro",
+   claves:["hoja","verde","nervaduras","venas","ramificado","red","celdas","patrón","macro","detalle","contraluz","luz","orgánico","naturaleza","líneas","translúcido"]},
+  {id:12, url:DRIVE("1EVUMjHnDB40TNXf2xhSq1kMkZAHYyvYw"), titulo:"Peluche (oso)",
+   descripcion:"Un oso de peluche de color beige claro, de pelo suave y revuelto, sentado sobre tablas de madera oscura y rústica. Tiene la nariz y los ojos oscuros. A la izquierda queda mucho espacio vacío de madera. Es un único objeto, tierno y centrado a la derecha. Sensación de calidez, infancia, ternura y nostalgia.",
+   colores:["beige","crema","marrón"], viva:false, movimiento:false, entorno:"interior",
+   claves:["peluche","oso","osito","juguete","beige","crema","marrón","madera","tablas","suave","peludo","blando","calidez","infancia","ternura","nostalgia","sentado","único"]},
+  {id:13, url:DRIVE("16QEX-jy8AJrVCxT9e5QMnq6GMjUtPCVS"), titulo:"Gafas expuestas",
+   descripcion:"Muchas gafas de sol colocadas en filas sobre estantes blancos iluminados, como en una tienda. Las lentes son de colores variados: azules, verdes, marrones, rosados, con reflejos. Todo muy ordenado, en cuadrícula, repetido. Sensación de orden, repetición, estructura y elección.",
+   colores:["azul","verde","marrón","rosa","negro","blanco"], viva:false, movimiento:false, entorno:"interior",
+   claves:["gafas","sol","lentes","cristales","filas","estantes","tienda","escaparate","orden","reflejos","azul","verde","marrón","rosa","repetición","estructura","cuadrícula","elección","muchas"]},
+  {id:14, url:DRIVE("1wIJ4D2C8suO3WdRaaeJqOQNRC-ZTc4ev"), titulo:"Gallo",
+   descripcion:"Un gallo de perfil, muy vistoso. La cresta y las barbas son de un rojo intenso. El cuello y el pecho tienen plumas naranjas y doradas que brillan, y en el ala y la cola hay plumas azules y verdes tornasoladas. Las patas son amarillas. El fondo es verde desenfocado. Mucha presencia, fuerza, orgullo y color intenso.",
+   colores:["rojo","naranja","dorado","azul","verde","negro","amarillo"], viva:true, movimiento:true, entorno:"exterior",
+   claves:["gallo","ave","pájaro","cresta","barbas","plumas","cola","rojo","naranja","dorado","azul","verde","amarillo","patas","tornasolado","brillo","presencia","fuerza","orgullo","intenso","granja"]},
+  {id:15, url:DRIVE("13t7NkxlsWhxFBZLgCkxO4U7GyYs5ecF3"), titulo:"Bolas de Navidad",
+   descripcion:"Cuatro bolas de Navidad brillantes colgando de ramas de pino verde: una dorada, una roja, una azul y otra roja. Tienen una textura en espiral y reflejan la luz. El fondo es verde con puntos de luz desenfocados, como nieve o destellos. Formas redondas, brillantes; sensación festiva, mágica y cálida.",
+   colores:["rojo","azul","dorado","verde"], viva:false, movimiento:false, entorno:"interior",
+   claves:["bolas","navidad","esferas","adornos","colgantes","brillo","reflejo","rojo","azul","dorado","verde","pino","ramas","redondo","esfera","luces","destellos","festivo","mágico"]},
+  {id:16, url:DRIVE("1joJwPvnzPfFOzb1KyOYgQ_pS7FP4i6vF"), titulo:"Rodajas de kiwi",
+   descripcion:"Muchas rodajas de kiwi, verdes y jugosas, con el centro blanco en forma de estrella y un anillo de semillas negras. El borde es marrón peludo. Se solapan formando un patrón de círculos repetidos. Sensación fresca, jugosa, repetitiva y muy verde.",
+   colores:["verde","marrón","negro","blanco"], viva:false, movimiento:false, entorno:"neutro",
+   claves:["kiwi","rodajas","fruta","verde","marrón","negro","blanco","semillas","círculo","redondo","anillo","estrella","centro","patrón","repetición","jugoso","fresco"]},
+  {id:17, url:DRIVE("1OaomgUWDT8L64CA6iS5LM9GfZS200Uod"), titulo:"Tijeras cortando cinta roja",
+   descripcion:"Unas tijeras de color cobre dorado cortando una cinta de satén roja y brillante, sobre un fondo blanco limpio. La cinta se ondula y se enrosca. Es la imagen típica de una inauguración. Acción de cortar; sensación de inicio, apertura, comienzo. Rojo intenso sobre blanco.",
+   colores:["rojo","blanco","gris","dorado"], viva:false, movimiento:true, entorno:"neutro",
+   claves:["tijeras","cinta","lazo","satén","rojo","blanco","cobre","dorado","metal","brillo","cortar","ondula","curva","inicio","apertura","inauguración","comienzo","acción"]},
+  {id:18, url:DRIVE("1QYih7W1NHMKnvVrA7AkWRrlqwWXHFv3e"), titulo:"Pies en la arena",
+   descripcion:"Vistos desde arriba, los pies descalzos de un niño o niña, de pie sobre arena clara con pequeñas piedrecitas. Tonos de piel y beige de la arena. Es un fragmento humano, sencillo y cercano. Sensación de contacto con la tierra, verano, sencillez y presencia.",
+   colores:["beige","marrón","rosa"], viva:true, movimiento:false, entorno:"exterior",
+   claves:["pies","piernas","descalzo","arena","piedras","guijarros","beige","marrón","piel","suelo","niño","humano","contacto","tierra","verano","sencillez","pisar","playa"]},
+  {id:19, url:DRIVE("1PmIoV6w8N1NptUzLBoN6Tm3FO2ncYf6p"), titulo:"Personas entrenando",
+   descripcion:"Un grupo de personas en un gimnasio levantando barras de pesas, agachadas y concentradas, con esfuerzo. Hay humo o niebla y anillas colgando al fondo. Tonos oscuros, grises y negros, con una mujer rubia en el centro. Sensación de intensidad, esfuerzo, fuerza física y energía contenida.",
+   colores:["gris","negro","blanco"], viva:true, movimiento:true, entorno:"interior",
+   claves:["personas","gente","grupo","gimnasio","entrenar","pesas","barra","esfuerzo","fuerza","intensidad","gris","negro","oscuro","humo","niebla","músculo","movimiento","energía","deporte"]},
+  {id:20, url:DRIVE("19G67whJm6DlYdqdJzmdtecClaVGiTPEJ"), titulo:"Vaca en el campo",
+   descripcion:"Una vaca blanca y negra (tipo frisona) tumbada tranquilamente sobre hierba verde, mirando a la cámara. Tiene crotales amarillos en las orejas y el hocico rosado. Es el elemento central y claro de la escena. Sensación de calma, descanso, mundo rural y cercanía.",
+   colores:["blanco","negro","verde","rosa"], viva:true, movimiento:false, entorno:"exterior",
+   claves:["vaca","animal","frisona","hierba","campo","verde","blanco","negro","manchas","rosa","hocico","orejas","crotales","tumbada","mirada","calma","descanso","rural","granja"]},
+];
+
+/* ============================================================
+   ESTADO
+   ============================================================ */
+const S = {
+  activa:false, objetivo:null, fase:0, turnos:0,
+  mencionado:{colores:[], palabras:[], emociones:[]},
+  usadas:new Set(),
+  voz:true, escuchando:false, hablando:false,
+  ia:false, clave:null,
+  historial:[]   // para el modo IA
+};
+
+const $ = s => document.querySelector(s);
+const dialogo=$("#dialogo"), estado=$("#estado"), aviso=$("#aviso");
+
+/* ============================================================
+   VOZ — síntesis (salida)
+   ============================================================ */
+let vozES=null;
+function elegirVoz(){
+  const vs=speechSynthesis.getVoices();
+  vozES = vs.find(v=>/es-ES/i.test(v.lang)&&/(Mónica|Monica|Helena|female|mujer)/i.test(v.name))
+       || vs.find(v=>/es-ES/i.test(v.lang)) || vs.find(v=>/^es/i.test(v.lang)) || null;
+}
+speechSynthesis.onvoiceschanged = elegirVoz; elegirVoz();
+
+function hablar(texto, alTerminar){
+  pintar(texto);
+  if(!S.voz || !("speechSynthesis" in window)){ if(alTerminar) setTimeout(alTerminar,400); return; }
+  speechSynthesis.cancel();
+  const frases = texto.replace(/<[^>]+>/g,"").split(/(?<=[\.\!\?…])\s+/).filter(Boolean);
+  marcarEstado("habla","Hablando…");
+  let i=0;
+  const siguiente=()=>{
+    if(i>=frases.length){ S.hablando=false; if(alTerminar) alTerminar(); return; }
+    const u=new SpeechSynthesisUtterance(frases[i]);
+    if(vozES) u.voice=vozES;
+    u.lang="es-ES"; u.rate=0.86; u.pitch=1.02; u.volume=1;
+    u.onend=()=>{ i++; setTimeout(siguiente, 320); };  // micro-pausa entre frases (ritmo)
+    speechSynthesis.speak(u);
+  };
+  S.hablando=true; siguiente();
+}
+
+/* ============================================================
+   VOZ — reconocimiento (entrada) manos libres
+   ============================================================ */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec=null, buffer="", silencio=null, micOK=false;
+
+function iniciarReconocimiento(){
+  if(!SR){ mostrarAviso("Tu navegador no permite el micrófono. Usa Chrome en ordenador, y abre la app desde un enlace https (Netlify o tu web)."); return false; }
+  rec = new SR();
+  rec.lang="es-ES"; rec.continuous=true; rec.interimResults=true;
+  rec.onresult = e=>{
+    let fin="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal) fin+=e.results[i][0].transcript;
+    }
+    if(fin) buffer += " "+fin;
+    reiniciarSilencio();
+  };
+  rec.onerror = e=>{
+    if(e.error==="not-allowed"||e.error==="service-not-allowed"){
+      mostrarAviso("El micrófono está bloqueado. Pulsa el candado a la izquierda de la barra de direcciones → Micrófono → Permitir, y recarga.");
+    }
+  };
+  rec.onend = ()=>{ if(S.escuchando) { try{rec.start();}catch(e){} } };
+  return true;
+}
+function reiniciarSilencio(){
+  clearTimeout(silencio);
+  silencio=setTimeout(()=>{
+    const t=buffer.trim(); buffer="";
+    if(t && S.escuchando && !S.hablando) procesar(t);
+  }, 1900); // envía sola ~1.9s después de que dejas de hablar
+}
+function escuchar(){
+  if(!rec) return;
+  S.escuchando=true; buffer="";
+  marcarEstado("escucha","Te escucho…");
+  try{ rec.start(); }catch(e){}
+}
+function pararEscucha(){
+  S.escuchando=false; clearTimeout(silencio);
+  if(rec) try{ rec.stop(); }catch(e){}
+}
+
+/* ============================================================
+   UI helpers
+   ============================================================ */
+function marcarEstado(modo, txt){
+  document.body.classList.remove("estado-escucha","estado-habla","estado-piensa");
+  if(modo==="escucha") document.body.classList.add("estado-escucha");
+  if(modo==="habla")   document.body.classList.add("estado-habla");
+  if(modo==="piensa")  document.body.classList.add("estado-piensa");
+  estado.textContent = txt || "";
+}
+function pintar(texto, miEco){
+  dialogo.innerHTML = texto + (miEco?`<span class="yo">tú: «${miEco}»</span>`:"");
+}
+function mostrarAviso(t){ aviso.style.display="block"; aviso.innerHTML=t; }
+function fase(clase){ document.body.className = clase; }
+
+/* ============================================================
+   MOTOR CONVERSACIONAL PROPIO (modo guion mejorado)
+   ============================================================ */
+const COLORES=["rojo","rojizo","naranja","amarillo","dorado","verde","azul","celeste","turquesa","violeta","morado","lila","rosa","marrón","ocre","gris","negro","blanco","plateado","beige"];
+const EMOCIONES=["paz","calma","tranquil","alegr","tristeza","triste","miedo","nostalg","sereni","inquiet","energía","energia","amor","soledad","libertad","melancol"];
+const BLOQUEO=["no sé","no se","nada","no veo","no me viene","en blanco","no siento","no puedo","perdid"];
+
+function detectar(texto){
+  const t=texto.toLowerCase();
+  const cols=COLORES.filter(c=>t.includes(c));
+  const emos=EMOCIONES.filter(e=>t.includes(e));
+  const bloqueo=BLOQUEO.some(b=>t.includes(b));
+  return {cols, emos, bloqueo};
+}
+// elige una frase de un array evitando repetir
+function variar(arr){
+  const libres=arr.filter(x=>!S.usadas.has(x));
+  const pool=libres.length?libres:arr;
+  const f=pool[Math.floor(Math.random()*pool.length)];
+  S.usadas.add(f);
+  return f;
+}
+
+// guiones por fase (preguntas abiertas, sin condicionar)
+const GUION={
+  color:[
+    "Sin forzar nada… ¿qué color es lo primero que aparece?",
+    "Quédate con la luz de la escena. ¿Es luminosa, o más bien en penumbra?",
+    "Si tuvieras que decir un color dominante, ¿cuál sería?",
+    "¿Hay algún color que destaque sobre los demás?"
+  ],
+  forma:[
+    "Muy bien. Ahora deja que aparezca una forma… ¿algo vertical, horizontal, redondeado?",
+    "¿Notas líneas, bordes, o algo más difuso y sin forma clara?",
+    "¿La escena se siente amplia y abierta, o más recogida y cerrada?",
+    "¿Hay algo que ocupe el centro, algo principal?"
+  ],
+  sensorial:[
+    "Acércate un poco más. Si pudieras tocarlo, ¿sería suave, áspero, frío, cálido?",
+    "¿Qué temperatura tiene esta escena?",
+    "Si hubiera un sonido aquí, ¿cuál sería… o es silencio?",
+    "¿Y un olor? Deja que llegue solo, aunque sea sutil."
+  ],
+  vida:[
+    "¿Sientes que hay algo vivo en la escena, o es más bien algo quieto?",
+    "¿Hay movimiento, o todo está en calma?",
+    "¿Percibes presencia de alguien, o estás sola ante la escena?"
+  ],
+  emocion:[
+    "Deja a un lado los detalles. ¿Qué emoción te deja esta imagen?",
+    "Si la escena tuviera un estado de ánimo, ¿cuál sería?",
+    "¿Cómo te sientes tú al estar delante de ella?"
+  ],
+  profundizar:[
+    "Eso es. Quédate ahí un momento… ¿qué más aparece alrededor?",
+    "Bien. No lo pienses, déjalo venir. ¿Qué se añade ahora?",
+    "Confía en lo primero que llegue. ¿Hay algún detalle nuevo?"
+  ]
+};
+
+// afirmaciones cálidas (reflejo) — se combinan con lo que dijo la persona
+function reflejo(texto, det){
+  const partes=[];
+  if(det.cols.length){
+    const c=det.cols[0];
+    // validación por aproximación si conocemos los colores de la imagen
+    const cs=(S.objetivo.colores||[]).map(x=>x.toLowerCase());
+    if(cs.includes(c)) partes.push(variar([`¡Ole… sí, hay mucho ${c} ahí!`, `Eso es, ese ${c} está muy presente.`, `¡Muy bien! El ${c} es de lo más fuerte de la escena.`]));
+    else partes.push(variar([`Bien, te quedas con ese ${c}…`, `Anoto ese ${c}, no lo sueltes.`, `Ese ${c} es tuyo, déjalo estar.`]));
+  } else if(det.emos.length){
+    partes.push(variar(["Qué bonito eso que sientes…","Sí, quédate con esa sensación.","Eso es muy valioso, sigue ahí."]));
+  } else {
+    partes.push(variar(["Muy bien.","Eso es.","Perfecto.","Te sigo…","Bien, bien."]));
+  }
+  return partes.join(" ");
+}
+
+// secuencia de fases del guion
+const SECUENCIA=["color","forma","sensorial","vida","emocion","profundizar","color","forma","sensorial","profundizar","emocion","profundizar"];
+
+function respuestaGuion(texto){
+  const det=detectar(texto);
+  // memoria
+  det.cols.forEach(c=>{ if(!S.mencionado.colores.includes(c)) S.mencionado.colores.push(c); });
+  det.emos.forEach(e=>{ if(!S.mencionado.emociones.includes(e)) S.mencionado.emociones.push(e); });
+
+  if(det.bloqueo){
+    return variar([
+      "Tranquila, no fuerces. Respira… y quédate solo con la primera mancha de color o de luz que aparezca.",
+      "No pasa nada. A veces lo más sutil es lo verdadero. ¿Solo luz u oscuridad… qué hay?",
+      "Suelta la mente. No tienes que ver nada nítido; basta una sensación. ¿Frío o calor?"
+    ]);
+  }
+
+  let r = reflejo(texto, det) + " ";
+
+  // de vez en cuando, reflejar algo dicho antes (memoria)
+  if(S.turnos>=4 && S.mencionado.colores.length>=1 && Math.random()<0.4){
+    const c=S.mencionado.colores[0];
+    r += variar([`Antes notabas ese ${c}… ¿sigue ahí, tiene ya una forma?`, `Vuelve un momento a ese ${c} de antes. ¿Dónde está dentro de la escena?`]);
+    return r;
+  }
+
+  const claseFase = SECUENCIA[Math.min(S.fase, SECUENCIA.length-1)];
+  r += variar(GUION[claseFase]);
+  S.fase++;
+  return r;
+}
+
+/* ============================================================
+   MODO IA (clave de Anthropic, directo desde el navegador)
+   ============================================================ */
+function systemPrompt(){
+  const o=S.objetivo;
+  return `Eres "el Orbe", un coach de visión intuitiva y percepción extrasensorial que acompaña por voz a una persona con los ojos cerrados. Hablas en español de España, en tono cálido, sereno y cercano, como una guía que susurra con confianza. Usas muletillas naturales y suaves ("muy bien…", "eso es…", "quédate ahí…", "ole…").
+
+REGLA DE ORO: la persona NO ve la imagen y tú JAMÁS la revelas ni la nombras ni la describes literalmente. Tu trabajo es que ella perciba por sí misma.
+
+Tú SÍ conoces la imagen objetivo (es secreta para ella):
+- Número: ${o.id}
+- Descripción: ${o.descripcion||"(sin descripción cargada; guía de forma abierta sin inventar detalles concretos)"}
+- Colores: ${(o.colores||[]).join(", ")||"(desconocidos)"}
+- ¿Viva?: ${o.viva===null?"(desconocido)":o.viva?"sí":"no"}
+- Movimiento: ${o.movimiento===null?"(desconocido)":o.movimiento?"sí":"no"}
+- Entorno: ${o.entorno||"(desconocido)"}
+
+CÓMO GUÍAS:
+- Una sola intervención breve por turno (1-3 frases). Siempre acabas con UNA pregunta abierta o una invitación, salvo en la revelación.
+- Validación por aproximación: cuando la persona acierta algo real de la imagen (un color, una forma, una sensación), celébralo con calidez ("¡ole, hay muchísimo de ese color!") SIN confirmar qué es la imagen. Si dice algo que no encaja, nunca digas "no es eso"; redirige en positivo ("quédate con eso… y mira si aparece algo más").
+- Refleja lo que ella ha dicho antes, para que se sienta escuchada.
+- Avanza por capas: primero color y luz, luego forma y estructura, luego texturas/temperatura/sonido/olor, después si hay vida o movimiento, y por último la emoción.
+- Ritmo pausado, frases cortas.
+
+Si la persona dice "desvela", "enséñame la imagen" o similar, responde solo con: [DESVELAR]`;
+}
+
+async function respuestaIA(texto){
+  S.historial.push({role:"user", content:texto});
+  const body={
+    model:"claude-3-5-haiku-latest",
+    max_tokens:200,
+    system:systemPrompt(),
+    messages:S.historial
+  };
+  const res=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "x-api-key":S.clave,
+      "anthropic-version":"2023-06-01",
+      "anthropic-dangerous-direct-browser-access":"true"
+    },
+    body:JSON.stringify(body)
+  });
+  if(!res.ok){ throw new Error("api "+res.status); }
+  const data=await res.json();
+  const txt=(data.content&&data.content[0]&&data.content[0].text||"").trim();
+  S.historial.push({role:"assistant", content:txt});
+  return txt;
+}
+
+/* ============================================================
+   FLUJO PRINCIPAL
+   ============================================================ */
+function procesar(texto){
+  if(!S.activa) return;
+  pararEscucha();
+  // comando de desvelar
+  if(/desvela|desvel|ens[eé]ñame|mu[eé]strame|revela|abre la imagen/i.test(texto)){ desvelar(); return; }
+  S.turnos++;
+  marcarEstado("piensa","Percibiendo…");
+  pintar("…", texto);
+
+  const seguir = (respuesta)=>{
+    if(/\[DESVELAR\]/i.test(respuesta)){ desvelar(); return; }
+    // habilitar desvelar a partir del turno 16
+    if(S.turnos>=16) $("#btnDesvelar").disabled=false;
+    hablar(respuesta, ()=>{ if(S.activa) escuchar(); });
+    pintar(respuesta, texto);
+  };
+
+  if(S.ia && S.clave){
+    respuestaIA(texto).then(seguir).catch(()=>{
+      mostrarAviso("No pude hablar con la IA (revisa la clave o el saldo). Sigo en modo gratis.");
+      S.ia=false; actualizarBotonIA();
+      seguir(respuestaGuion(texto));
+    });
+  } else {
+    setTimeout(()=>seguir(respuestaGuion(texto)), 500);
+  }
+}
+
+function comenzar(){
+  // elegir imagen al azar
+  S.objetivo = BANCO[Math.floor(Math.random()*BANCO.length)];
+  S.activa=true; S.fase=0; S.turnos=0;
+  S.mencionado={colores:[],palabras:[],emociones:[]}; S.usadas=new Set(); S.historial=[];
+  fase("fase-calma");
+  $("#btnComenzar").style.display="none";
+  $("#btnNueva").style.display="none";
+  $("#escribirWrap").style.display="flex";
+  $("#revelacion").style.display="none";
+  $("#btnDesvelar").disabled=true;
+  aviso.style.display="none";
+
+  if(SR && !rec) iniciarReconocimiento();
+
+  const bienvenida = `Vamos a empezar. Trabajaremos con la imagen número ${S.objetivo.id}. Cierra los ojos… y respira hondo conmigo. Inspira… y suelta. Otra vez: inspira lento… y suelta despacio. Deja que aparezca una pantalla en blanco delante de ti. Cuando notes la primera impresión, dímela en voz alta.`;
+  fase("fase-color");
+  hablar(bienvenida, ()=>{ if(S.activa) escuchar(); });
+}
+
+function desvelar(){
+  S.activa=false; pararEscucha(); speechSynthesis.cancel();
+  fase("fase-revelar");
+  marcarEstado("","");
+  const o=S.objetivo;
+  let cierre=`Abre los ojos poco a poco. Esta era la imagen número ${o.id}. `;
+  if(S.mencionado.colores.length){
+    const aciertos=S.mencionado.colores.filter(c=>(o.colores||[]).map(x=>x.toLowerCase()).includes(c));
+    if(aciertos.length) cierre+=`Captaste muy bien el ${aciertos.join(" y el ")} — está justo ahí. `;
+    else cierre+=`Mencionaste ${S.mencionado.colores.join(", ")}; míralo y compara con calma. `;
+  }
+  cierre+="Tómate un momento para sentir cómo de cerca estuviste. Lo has hecho muy bien.";
+
+  $("#revNum").textContent=`Imagen ${o.id}`;
+  $("#revImg").src=o.url;
+  $("#revDesc").textContent=o.descripcion ? o.descripcion : "(Añade la descripción de esta imagen en el BANCO para verla aquí.)";
+  $("#revelacion").style.display="block";
+  $("#btnDesvelar").disabled=true;
+  $("#btnNueva").style.display="inline-block";
+  hablar(cierre);
+  $("#revelacion").scrollIntoView({behavior:"smooth"});
+}
+
+/* ============================================================
+   CONTROLES
+   ============================================================ */
+$("#btnComenzar").onclick=comenzar;
+$("#btnNueva").onclick=()=>{ $("#btnComenzar").style.display="inline-block"; $("#btnNueva").style.display="none"; $("#revelacion").style.display="none"; pintar("Cuando quieras, empezamos otra. Pulsa <strong>Comenzar</strong>."); estado.textContent="Lista para otra sesión."; fase("fase-calma"); };
+$("#btnDesvelar").onclick=desvelar;
+$("#btnEnviar").onclick=()=>{ const v=$("#entrada").value.trim(); if(v){ $("#entrada").value=""; procesar(v); } };
+$("#entrada").addEventListener("keydown",e=>{ if(e.key==="Enter"){ $("#btnEnviar").click(); } });
+
+$("#btnVoz").onclick=()=>{
+  S.voz=!S.voz; $("#btnVoz").textContent=S.voz?"🔊 Voz":"🔇 Voz";
+  if(!S.voz) speechSynthesis.cancel();
+};
+
+// modo IA
+function actualizarBotonIA(){
+  const b=$("#btnIA");
+  if(S.ia && S.clave){ b.textContent="IA: activa"; b.classList.add("ia-on"); }
+  else { b.textContent="IA: —"; b.classList.remove("ia-on"); }
+}
+S.clave = localStorage.getItem("orbe_clave") || sessionStorage.getItem("orbe_clave") || null;
+S.ia = !!S.clave; actualizarBotonIA();
+
+$("#btnIA").onclick=()=>{ $("#inputClave").value=S.clave||""; $("#modalIA").style.display="flex"; };
+$("#claveGuardar").onclick=()=>{
+  const v=$("#inputClave").value.trim();
+  // limpiamos cualquier rastro previo y guardamos según la preferencia
+  localStorage.removeItem("orbe_clave"); sessionStorage.removeItem("orbe_clave");
+  if(v){
+    S.clave=v; S.ia=true;
+    if($("#recordarClave").checked) localStorage.setItem("orbe_clave",v);
+    else sessionStorage.setItem("orbe_clave",v); // se borra al cerrar la pestaña
+  }
+  $("#modalIA").style.display="none"; actualizarBotonIA();
+};
+$("#claveQuitar").onclick=()=>{
+  S.clave=null; S.ia=false;
+  localStorage.removeItem("orbe_clave"); sessionStorage.removeItem("orbe_clave");
+  $("#modalIA").style.display="none"; actualizarBotonIA();
+};
+$("#modalIA").onclick=e=>{ if(e.target.id==="modalIA") $("#modalIA").style.display="none"; };
+
+// aviso si no hay micrófono
+if(!SR){ mostrarAviso("Para hablar manos libres usa <strong>Chrome en ordenador</strong> y abre la app desde un enlace <strong>https</strong> (Netlify o tu web). También puedes escribir en el recuadro de abajo."); }
+</script>
+</body>
+</html>

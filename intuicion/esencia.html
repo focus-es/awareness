@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conectar con la esencia · Awareness</title>
+<link rel="stylesheet" href="../assets/awareness.css">
+<script src="../assets/config.js"></script>
+<script src="../assets/cloud.js"></script>
+<style>
+  .es-wrap{max-width:760px;margin:0 auto;padding:16px 14px 50px}
+  .es-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:26px;text-align:center}
+  .es-card h1{font-weight:300;font-size:1.5rem;margin-bottom:8px}
+  .es-card p{color:var(--dim);font-size:.95rem;margin-bottom:16px}
+  .es-codigos{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:8px;margin:14px 0}
+  .es-cod{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 4px;
+    color:var(--text);cursor:pointer;font-size:.86rem;transition:border-color .15s}
+  .es-cod:hover{border-color:var(--accent)}
+  .es-cod.hecho{color:var(--dim);border-style:dashed}
+  .es-cod.hecho::after{content:" ✓";color:var(--ok)}
+  .es-codigo-big{font-size:2rem;letter-spacing:.2em;color:var(--accent);font-weight:300;margin:8px 0 4px}
+  .es-guia{font-size:1.05rem;color:var(--text);min-height:3em;display:flex;align-items:center;justify-content:center}
+  .es-resp{width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,#2a4a6a,#1a2436);
+    border:1px solid var(--accent);margin:14px auto;animation:resp 6s ease-in-out infinite}
+  @keyframes resp{0%,100%{transform:scale(.8);opacity:.7}50%{transform:scale(1.15);opacity:1}}
+  canvas#pz{background:#f5f2ea;border-radius:14px;width:100%;touch-action:none;cursor:crosshair;display:block}
+  .pz-tools{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin:12px 0}
+  .pz-color{width:34px;height:34px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+  .pz-color.sel{border-color:var(--accent);transform:scale(1.15)}
+  .pz-borrar{background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--dim);
+    padding:7px 14px;cursor:pointer;font-size:.85rem}
+  input#palabras{width:100%;padding:12px;border-radius:12px;border:1px solid var(--border);
+    background:var(--bg2);color:var(--text);font-size:.95rem;margin:8px 0 14px}
+  .es-opciones{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}
+  @media(max-width:560px){.es-opciones{grid-template-columns:1fr}}
+  .es-img{border:2px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;
+    transition:transform .2s,border-color .2s;background:var(--bg2)}
+  .es-img:hover{transform:translateY(-3px);border-color:var(--accent)}
+  .es-img svg{display:block;width:100%;height:auto}
+  .es-img.elegida{border-color:var(--accent)}
+  .es-img.objetivo{border-color:var(--ok)}
+  .es-rev{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0;align-items:start}
+  @media(max-width:560px){.es-rev{grid-template-columns:1fr}}
+  .es-rev .pane{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:10px}
+  .es-rev .pane .t{font-size:.8rem;color:var(--dim);margin-bottom:8px}
+  .es-rev img{width:100%;border-radius:10px}
+  .es-tasa{font-size:.95rem;color:var(--dim);margin-top:12px}
+  .es-tasa b{color:var(--accent)}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="es-wrap">
+  <div class="aw-top">
+    <a class="aw-back" href="../index.html">← Inicio</a>
+    <div class="aw-title">Conectar con la esencia</div>
+    <span class="aw-lvl-chip" id="chip">visión remota</span>
+  </div>
+  <div id="pantalla"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* Banco de 20 imágenes objetivo (SVG) con metadatos para el futuro Orbe guía */
+  const W = '0 0 200 140';
+  const sv = (inner, bg) => '<svg viewBox="' + W + '" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="140" fill="' + bg + '"/>' + inner + '</svg>';
+  const BANCO = [
+    { c: 'VR001', n: 'Montaña nevada', colores: 'azul y blanco', temp: 'fría', svg: sv('<polygon points="100,18 178,128 22,128" fill="#5a7fa8"/><polygon points="100,18 128,58 72,58" fill="#eef4fa"/><circle cx="160" cy="30" r="12" fill="#dde6f2" opacity=".7"/>', '#16243a') },
+    { c: 'VR002', n: 'Fresa', colores: 'rojo intenso', temp: 'cálida', svg: sv('<path d="M100 35 C140 35 150 70 100 122 C50 70 60 35 100 35Z" fill="#c94f4f"/><path d="M100 35 C92 22 108 22 100 35 M86 34 l8 -12 M114 34 l-8 -12" stroke="#6fae7d" stroke-width="6" fill="none"/><g fill="#f2d9a0"><circle cx="88" cy="62" r="3"/><circle cx="112" cy="62" r="3"/><circle cx="100" cy="82" r="3"/><circle cx="84" cy="92" r="3"/><circle cx="116" cy="92" r="3"/></g>', '#1d2a20') },
+    { c: 'VR003', n: 'Ola del mar', colores: 'azul y espuma blanca', temp: 'fría', svg: sv('<path d="M0 90 C50 40 80 40 100 70 C108 40 150 35 160 60 C150 60 140 70 150 80 C100 130 40 120 0 100Z" fill="#4f7fc9"/><path d="M95 68 C100 50 130 45 145 58" stroke="#eef4fa" stroke-width="5" fill="none"/>', '#13202e') },
+    { c: 'VR004', n: 'Desierto al sol', colores: 'naranja y arena', temp: 'muy cálida', svg: sv('<circle cx="150" cy="40" r="20" fill="#e8b15a"/><path d="M0 100 C60 85 120 110 200 95 L200 140 L0 140Z" fill="#caa06a"/><path d="M0 115 C70 105 130 125 200 112 L200 140 L0 140Z" fill="#b08a55"/>', '#a8552f') },
+    { c: 'VR005', n: 'Bosque profundo', colores: 'verdes', temp: 'fresca', svg: sv('<g fill="#3e6e50"><polygon points="50,110 70,40 90,110"/><polygon points="100,115 125,30 150,115"/><polygon points="20,118 35,65 50,118"/><polygon points="150,118 168,70 186,118"/></g><rect x="66" y="110" width="8" height="16" fill="#5a4632"/><rect x="121" y="115" width="8" height="14" fill="#5a4632"/>', '#101c14') },
+    { c: 'VR006', n: 'Luna llena', colores: 'plata sobre noche', temp: 'fría', svg: sv('<circle cx="100" cy="65" r="34" fill="#d9dee8"/><circle cx="88" cy="55" r="6" fill="#b9c2d2"/><circle cx="112" cy="75" r="8" fill="#b9c2d2"/><g fill="#dde6f2"><circle cx="30" cy="25" r="2"/><circle cx="170" cy="35" r="2"/><circle cx="55" cy="110" r="2"/><circle cx="155" cy="105" r="2"/></g>', '#0b1020') },
+    { c: 'VR007', n: 'Hoguera', colores: 'rojo y naranja', temp: 'caliente', svg: sv('<path d="M100 30 C120 60 130 70 124 95 C118 115 82 115 76 95 C70 70 80 60 100 30Z" fill="#d97d4f"/><path d="M100 55 C110 72 114 78 110 93 C106 105 94 105 90 93 C86 78 90 72 100 55Z" fill="#e8c15a"/><rect x="60" y="112" width="80" height="9" rx="4" fill="#6e5037"/>', '#1d130e') },
+    { c: 'VR008', n: 'Faro en la costa', colores: 'blanco y rojo junto al mar', temp: 'fría', svg: sv('<rect x="90" y="35" width="20" height="70" fill="#eef4fa"/><rect x="90" y="50" width="20" height="12" fill="#c94f4f"/><rect x="90" y="76" width="20" height="12" fill="#c94f4f"/><polygon points="88,35 112,35 106,22 94,22" fill="#c94f4f"/><circle cx="100" cy="29" r="4" fill="#e8e15a"/><path d="M0 112 C60 100 140 122 200 108 L200 140 L0 140Z" fill="#3a5a80"/>', '#152232') },
+    { c: 'VR009', n: 'Globo aerostático', colores: 'rojo y amarillo en el cielo', temp: 'cálida', svg: sv('<path d="M100 22 C135 22 145 60 100 96 C55 60 65 22 100 22Z" fill="#c96a4f"/><path d="M100 22 C112 22 118 60 100 96 C82 60 88 22 100 22Z" fill="#e8c15a"/><rect x="92" y="102" width="16" height="12" rx="3" fill="#6e5037"/><path d="M90 92 L93 102 M110 92 L107 102" stroke="#6e5037" stroke-width="2"/>', '#274059') },
+    { c: 'VR010', n: 'Cascada', colores: 'azul y blanco cayendo', temp: 'fría', svg: sv('<rect x="0" y="0" width="80" height="140" fill="#4a5e48"/><rect x="120" y="0" width="80" height="140" fill="#4a5e48"/><path d="M80 0 L120 0 L120 100 C120 115 80 115 80 100Z" fill="#6f9fd9"/><path d="M88 0 L94 0 L94 100 M106 0 L112 0 L112 100" stroke="#eef4fa" stroke-width="3" opacity=".7"/><ellipse cx="100" cy="118" rx="46" ry="12" fill="#6f9fd9"/>', '#1a2a20') },
+    { c: 'VR011', n: 'Girasol', colores: 'amarillo radiante', temp: 'cálida', svg: sv('<g fill="#e8c15a"><ellipse cx="100" cy="40" rx="10" ry="20"/><ellipse cx="100" cy="100" rx="10" ry="20"/><ellipse cx="70" cy="70" rx="20" ry="10"/><ellipse cx="130" cy="70" rx="20" ry="10"/><ellipse cx="79" cy="49" rx="14" ry="9" transform="rotate(-45 79 49)"/><ellipse cx="121" cy="49" rx="14" ry="9" transform="rotate(45 121 49)"/><ellipse cx="79" cy="91" rx="14" ry="9" transform="rotate(45 79 91)"/><ellipse cx="121" cy="91" rx="14" ry="9" transform="rotate(-45 121 91)"/></g><circle cx="100" cy="70" r="18" fill="#6e5037"/>', '#27331d') },
+    { c: 'VR012', n: 'Tormenta eléctrica', colores: 'violeta y un rayo', temp: 'eléctrica', svg: sv('<ellipse cx="80" cy="45" rx="45" ry="22" fill="#5a5a80"/><ellipse cx="130" cy="38" rx="38" ry="18" fill="#6a6a90"/><polygon points="105,60 88,95 100,95 84,128 122,86 108,86 122,60" fill="#e8e15a"/>', '#1a1530') },
+    { c: 'VR013', n: 'Puente de piedra', colores: 'gris sobre el río', temp: 'neutra', svg: sv('<path d="M20 80 L20 60 C20 30 180 30 180 60 L180 80 L150 80 L150 65 C150 48 50 48 50 65 L50 80Z" fill="#8a8f9a"/><rect x="0" y="80" width="200" height="8" fill="#8a8f9a"/><path d="M0 110 C70 100 130 120 200 108 L200 140 L0 140Z" fill="#3a5a80"/>', '#202c36') },
+    { c: 'VR014', n: 'Manzana verde', colores: 'verde fresco', temp: 'fresca', svg: sv('<circle cx="100" cy="80" r="38" fill="#7dae6f"/><circle cx="86" cy="68" r="10" fill="#9ac98f" opacity=".7"/><path d="M100 42 C100 30 106 26 112 24" stroke="#6e5037" stroke-width="4" fill="none"/><path d="M112 30 C122 24 128 30 124 38 C116 40 112 36 112 30Z" fill="#5a8a4f"/>', '#1d2417') },
+    { c: 'VR015', n: 'Estrella fugaz', colores: 'dorado cruzando la noche', temp: 'fría', svg: sv('<path d="M30 110 L150 40" stroke="#e8c15a" stroke-width="3" opacity=".6"/><path d="M60 96 L150 40" stroke="#e8e15a" stroke-width="2" opacity=".4"/><polygon points="155,32 159,42 170,42 161,49 164,60 155,53 146,60 149,49 140,42 151,42" fill="#e8e15a"/><g fill="#dde6f2"><circle cx="40" cy="30" r="2"/><circle cx="90" cy="20" r="2"/><circle cx="60" cy="60" r="1.5"/></g>', '#0b1020') },
+    { c: 'VR016', n: 'Taza humeante', colores: 'crema y vapor', temp: 'caliente', svg: sv('<path d="M60 70 L140 70 L134 118 C133 126 67 126 66 118Z" fill="#e8dcc8"/><path d="M140 78 C158 78 158 100 138 102" stroke="#e8dcc8" stroke-width="7" fill="none"/><path d="M85 58 C80 48 90 44 85 34 M105 58 C100 48 110 44 105 34 M115 60 C112 53 118 50 115 43" stroke="#b9c2d2" stroke-width="3" fill="none" opacity=".8"/>', '#2a2018') },
+    { c: 'VR017', n: 'Vela encendida', colores: 'ámbar en penumbra', temp: 'cálida', svg: sv('<rect x="88" y="62" width="24" height="56" rx="5" fill="#e8dcc8"/><path d="M100 36 C108 48 106 56 100 58 C94 56 92 48 100 36Z" fill="#e8b15a"/><circle cx="100" cy="52" r="3" fill="#e8e15a"/><line x1="100" y1="58" x2="100" y2="64" stroke="#6e5037" stroke-width="2"/><circle cx="100" cy="52" r="26" fill="#e8b15a" opacity=".12"/>', '#171210') },
+    { c: 'VR018', n: 'Isla con palmera', colores: 'verde y turquesa', temp: 'cálida', svg: sv('<ellipse cx="100" cy="110" rx="55" ry="16" fill="#caa06a"/><path d="M95 108 C95 80 90 65 80 52" stroke="#6e5037" stroke-width="6" fill="none"/><g fill="#5a8a4f"><path d="M80 52 C60 40 45 44 38 54 C55 50 70 54 80 52Z"/><path d="M80 52 C85 32 100 26 112 30 C96 34 86 44 80 52Z"/><path d="M80 52 C95 44 112 48 118 58 C102 52 88 54 80 52Z"/></g><path d="M0 122 C60 112 140 132 200 120 L200 140 L0 140Z" fill="#4f9fb0"/>', '#1b3540') },
+    { c: 'VR019', n: 'Campana dorada', colores: 'dorado', temp: 'neutra', svg: sv('<path d="M100 30 C130 30 132 75 142 92 L58 92 C68 75 70 30 100 30Z" fill="#cfa84f"/><circle cx="100" cy="25" r="6" fill="#cfa84f"/><circle cx="100" cy="102" r="8" fill="#b08a3a"/><rect x="54" y="92" width="92" height="6" rx="3" fill="#b08a3a"/>', '#201a10') },
+    { c: 'VR020', n: 'Copo de nieve', colores: 'blanco azulado', temp: 'muy fría', svg: sv('<g stroke="#dde6f2" stroke-width="4" fill="none"><line x1="100" y1="25" x2="100" y2="115"/><line x1="61" y1="47" x2="139" y2="93"/><line x1="139" y1="47" x2="61" y2="93"/><path d="M100 35 L92 45 M100 35 L108 45 M100 105 L92 95 M100 105 L108 95 M70 52 L82 50 M70 88 L82 90 M130 52 L118 50 M130 88 L118 90"/></g><circle cx="100" cy="70" r="7" fill="#dde6f2"/>', '#101a2c') }
+  ];
+
+  const L = (k, v) => {
+    try {
+      if (v === undefined) { const x = localStorage.getItem('aw:esencia:' + k); return x == null ? null : JSON.parse(x); }
+      localStorage.setItem('aw:esencia:' + k, JSON.stringify(v));
+    } catch (e) { return null; }
+  };
+
+  const P = document.getElementById('pantalla');
+  let objetivo = null, senuelo = null, eleccion = null, t0 = 0, dibujoURL = '';
+
+  /* ---------- 1 · Elegir código ---------- */
+  function portada() {
+    const hechos = L('hechos') || [];
+    const st = L('stats') || { jugadas: 0, aciertos: 0 };
+    P.innerHTML =
+      '<div class="es-card"><h1>Conectar con la esencia</h1>' +
+      '<p>Detrás de cada código hay una imagen que no has visto. Sintoniza con ella, vuelca lo que llegue ' +
+      'en la pizarra y después elige entre dos cuál crees que es. El azar acierta el 50%: lo interesante es tu tasa con el tiempo.</p>' +
+      (st.jugadas ? '<div class="es-tasa">Tu tasa: <b>' + Math.round(100 * st.aciertos / st.jugadas) + '%</b> en ' + st.jugadas + ' conexiones</div>' : '') +
+      '<button class="aw-btn" style="margin:14px 0" id="azar">Código al azar</button>' +
+      '<p style="font-size:.82rem">o elige uno:</p><div class="es-codigos" id="grid"></div></div>';
+    const grid = document.getElementById('grid');
+    BANCO.forEach(img => {
+      const b = document.createElement('button');
+      b.className = 'es-cod' + (hechos.includes(img.c) ? ' hecho' : '');
+      b.textContent = img.c;
+      b.onclick = () => sintonia(img);
+      grid.appendChild(b);
+    });
+    document.getElementById('azar').onclick = () => {
+      const libres = BANCO.filter(i => !hechos.includes(i.c));
+      const pool = libres.length ? libres : BANCO;
+      sintonia(pool[Math.floor(Math.random() * pool.length)]);
+    };
+  }
+
+  /* ---------- 2 · Sintonía guiada ---------- */
+  function sintonia(img) {
+    objetivo = img; t0 = performance.now();
+    const otros = BANCO.filter(i => i.c !== img.c);
+    senuelo = otros[Math.floor(Math.random() * otros.length)];
+    const pasos = [
+      'Suelta la prisa. Tres respiraciones lentas…',
+      'Lleva tu atención al código. No busques: deja que llegue.',
+      '¿Color… forma… temperatura… emoción? Lo primero que aparezca vale.'
+    ];
+    let i = 0;
+    P.innerHTML =
+      '<div class="es-card"><div class="es-codigo-big" id="cod">' + img.c + '</div>' +
+      '<div class="es-resp"></div><div class="es-guia" id="guia"></div>' +
+      '<button class="aw-btn" id="sig">Estoy lista</button></div>';
+    const guia = document.getElementById('guia');
+    const sig = document.getElementById('sig');
+    guia.textContent = pasos[0];
+    const iv = setInterval(() => { i = (i + 1) % pasos.length; guia.textContent = pasos[i]; }, 7000);
+    sig.onclick = () => { clearInterval(iv); pizarra(); };
+  }
+
+  /* ---------- 3 · Pizarra ---------- */
+  function pizarra() {
+    P.innerHTML =
+      '<div class="es-card"><div class="es-codigo-big" style="font-size:1.2rem">' + objetivo.c + '</div>' +
+      '<p>Vuelca lo que percibas: trazos, formas, manchas de color. No tiene que ser bonito ni tener sentido.</p>' +
+      '<canvas id="pz" width="640" height="420"></canvas>' +
+      '<div class="pz-tools" id="tools"></div>' +
+      '<input id="palabras" placeholder="Palabras sueltas: cálido, redondo, agua…  (opcional)">' +
+      '<button class="aw-btn" id="listo">Registrar y ver las imágenes</button></div>';
+
+    const cv = document.getElementById('pz');
+    const cx = cv.getContext('2d');
+    cx.fillStyle = '#f5f2ea'; cx.fillRect(0, 0, cv.width, cv.height);
+    cx.lineCap = 'round'; cx.lineJoin = 'round';
+    let color = '#2a3a54', dibujando = false, px = 0, py = 0;
+
+    const COLORES = ['#2a3a54', '#c94f4f', '#e8b15a', '#5a8a4f', '#4f7fc9', '#9d8fd9'];
+    const tools = document.getElementById('tools');
+    COLORES.forEach((c, i) => {
+      const b = document.createElement('button');
+      b.className = 'pz-color' + (i === 0 ? ' sel' : '');
+      b.style.background = c;
+      b.onclick = () => { color = c; tools.querySelectorAll('.pz-color').forEach(x => x.classList.remove('sel')); b.classList.add('sel'); };
+      tools.appendChild(b);
+    });
+    const borrar = document.createElement('button');
+    borrar.className = 'pz-borrar'; borrar.textContent = 'Borrar todo';
+    borrar.onclick = () => { cx.fillStyle = '#f5f2ea'; cx.fillRect(0, 0, cv.width, cv.height); };
+    tools.appendChild(borrar);
+
+    const pos = (e) => {
+      const r = cv.getBoundingClientRect();
+      return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height];
+    };
+    cv.addEventListener('pointerdown', e => { dibujando = true; [px, py] = pos(e); cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', e => {
+      if (!dibujando) return;
+      const [x, y] = pos(e);
+      cx.strokeStyle = color; cx.lineWidth = 5;
+      cx.beginPath(); cx.moveTo(px, py); cx.lineTo(x, y); cx.stroke();
+      px = x; py = y;
+    });
+    cv.addEventListener('pointerup', () => dibujando = false);
+
+    document.getElementById('listo').onclick = () => {
+      try {
+        const mini = document.createElement('canvas');
+        mini.width = 240; mini.height = 158;
+        mini.getContext('2d').drawImage(cv, 0, 0, 240, 158);
+        dibujoURL = mini.toDataURL('image/jpeg', .6);
+      } catch (e) { dibujoURL = ''; }
+      elegir(document.getElementById('palabras').value.trim());
+    };
+  }
+
+  /* ---------- 4 · Elección entre dos ---------- */
+  function elegir(palabras) {
+    const par = Math.random() < .5 ? [objetivo, senuelo] : [senuelo, objetivo];
+    P.innerHTML =
+      '<div class="es-card"><h1 style="font-size:1.2rem">¿Cuál es la imagen del código ' + objetivo.c + '?</h1>' +
+      '<p>Compárala con lo que sentiste y dibujaste. Decide desde ahí.</p>' +
+      '<div class="es-opciones">' +
+      par.map((img, i) => '<div class="es-img" data-i="' + i + '">' + img.svg + '</div>').join('') +
+      '</div></div>';
+    P.querySelectorAll('.es-img').forEach(el => {
+      el.onclick = () => {
+        eleccion = par[Number(el.dataset.i)];
+        revelar(palabras);
+      };
+    });
+  }
+
+  /* ---------- 5 · Revelación ---------- */
+  function revelar(palabras) {
+    const acierto = eleccion.c === objetivo.c;
+    const dur = Math.round((performance.now() - t0) / 1000);
+
+    const hechos = L('hechos') || [];
+    if (!hechos.includes(objetivo.c)) { hechos.push(objetivo.c); L('hechos', hechos); }
+    const st = L('stats') || { jugadas: 0, aciertos: 0 };
+    st.jugadas++; if (acierto) st.aciertos++;
+    L('stats', st);
+    const hist = L('hist') || [];
+    hist.push({ codigo: objetivo.c, acierto, palabras, dibujo: dibujoURL, fecha: new Date().toISOString() });
+    if (hist.length > 40) hist.shift();
+    L('hist', hist);
+
+    try {
+      const histG = JSON.parse(localStorage.getItem('aw:aw:historial') || '[]');
+      histG.push({ modulo: 'esencia', version: 1, nivel: 1, duracion_s: dur, fecha: new Date().toISOString(), metricas: { codigo: objetivo.c, acierto: acierto ? 1 : 0 } });
+      localStorage.setItem('aw:aw:historial', JSON.stringify(histG.slice(-400)));
+    } catch (e) {}
+    try {
+      if (window.AwCloud) AwCloud.push('module_runs', {
+        modulo: 'esencia', nivel: 1, duracion_s: dur,
+        metricas: { codigo: objetivo.c, acierto: acierto ? 1 : 0, palabras: palabras || null }
+      });
+    } catch (e) {}
+
+    const tasa = Math.round(100 * st.aciertos / st.jugadas);
+    P.innerHTML =
+      '<div class="es-card">' +
+      '<h1 style="color:' + (acierto ? 'var(--ok)' : 'var(--dim)') + '">' +
+      (acierto ? '✓ Conectaste con ' + objetivo.n : 'Era: ' + objetivo.n) + '</h1>' +
+      '<p>' + (acierto ? 'Revisa qué trazos o palabras apuntaban a la imagen: eso es lo que se entrena.'
+        : 'Sin drama: el azar acierta el 50%. Compara tu pizarra con la imagen real; a veces la conexión está aunque la elección falle.') + '</p>' +
+      '<div class="es-rev">' +
+      '<div class="pane"><div class="t">La imagen del código ' + objetivo.c + '</div>' + objetivo.svg + '</div>' +
+      '<div class="pane"><div class="t">Tu pizarra' + (palabras ? ' · «' + palabras + '»' : '') + '</div>' +
+      (dibujoURL ? '<img src="' + dibujoURL + '">' : '<p style="padding:20px">—</p>') + '</div>' +
+      '</div>' +
+      '<div class="es-tasa">Tasa acumulada: <b>' + tasa + '%</b> en ' + st.jugadas + ' conexiones' +
+      (st.jugadas < 20 ? ' · aún es pronto para leer nada' : (tasa >= 60 ? ' · interesante, sigue acumulando' : '')) + '</div>' +
+      '<div class="aw-actions" style="margin-top:18px">' +
+      '<button class="aw-btn" id="otra">Otra conexión</button>' +
+      '<button class="aw-btn sec" onclick="location.href=\'../index.html\'">Inicio</button></div></div>';
+    document.getElementById('otra').onclick = portada;
+  }
+
+  portada();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Práctica de Visión Remota</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-0:#100b1a;            /* la oscuridad detrás de los párpados */
+    --bg-1:#1b1430;
+    --bg-2:#241a3d;
+    --ink:#F2EADF;            /* texto cálido */
+    --ink-soft:#B3A8C4;
+    --ink-faint:#7d7392;
+    --amber:#FFD9A0;          /* núcleo del orbe */
+    --coral:#FF9E7A;
+    --violet:#A98BFF;
+    --aqua:#7FE5D4;           /* dato perceptivo / coincidencia */
+    --line:rgba(255,255,255,.10);
+    --panel:rgba(255,255,255,.045);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Inter',system-ui,sans-serif;
+    color:var(--ink);
+    background:radial-gradient(120% 90% at 50% -10%, var(--bg-2), var(--bg-1) 45%, var(--bg-0) 100%);
+    min-height:100dvh;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* campo de estrellas tenue */
+  #stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.55}
+  .wrap{position:relative;z-index:2;max-width:620px;margin:0 auto;padding:34px 22px 70px;min-height:100dvh;display:flex;flex-direction:column}
+  .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .brand{font-family:'Fraunces',serif;font-weight:400;font-size:15px;letter-spacing:.04em;color:var(--ink-soft)}
+  .brand b{color:var(--amber);font-weight:500}
+  .voz-btn{background:none;border:1px solid var(--line);color:var(--ink-soft);font-family:inherit;font-size:12px;
+    padding:7px 12px;border-radius:30px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:.25s}
+  .voz-btn:hover{border-color:rgba(255,255,255,.28);color:var(--ink)}
+  .voz-btn.on{color:var(--aqua);border-color:rgba(127,229,212,.45)}
+  .voz-dot{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+
+  .stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;animation:fade .7s ease both}
+  @keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+  /* ---- ORBE ---- */
+  .orb-stage{width:230px;height:230px;display:grid;place-items:center;position:relative;margin:6px auto 4px}
+  .orb{
+    width:150px;height:150px;border-radius:50%;position:relative;
+    background:
+      radial-gradient(circle at 38% 32%, #FFF7E5 0%, var(--amber) 18%, var(--coral) 48%, var(--violet) 78%, #4a2f7a 100%);
+    box-shadow:
+      0 0 50px 6px rgba(255,158,122,.40),
+      0 0 110px 24px rgba(169,139,255,.30),
+      inset -16px -20px 50px rgba(40,20,70,.55),
+      inset 14px 14px 36px rgba(255,240,210,.40);
+    animation:breathe 8s ease-in-out infinite;
+    will-change:transform,box-shadow;
+  }
+  .orb::after{content:"";position:absolute;top:18%;left:22%;width:34%;height:26%;border-radius:50%;
+    background:radial-gradient(circle,rgba(255,255,255,.85),transparent 70%);filter:blur(2px)}
+  .halo{position:absolute;inset:0;border-radius:50%;border:1px solid rgba(169,139,255,.18);
+    animation:halo 8s ease-in-out infinite}
+  .halo.b{animation-delay:-4s;border-color:rgba(255,217,160,.14)}
+  @keyframes breathe{0%,100%{transform:scale(.92)}50%{transform:scale(1.06)}}
+  @keyframes halo{0%,100%{transform:scale(.85);opacity:.5}50%{transform:scale(1.25);opacity:0}}
+  .orb.listen{animation:breathe 4s ease-in-out infinite}
+  .orb.speak{animation:breathe 2.4s ease-in-out infinite}
+
+  h1{font-family:'Fraunces',serif;font-weight:300;font-size:clamp(30px,8vw,42px);line-height:1.08;letter-spacing:-.01em;margin:18px 0 0}
+  h1 em{font-style:italic;color:var(--amber)}
+  .lede{color:var(--ink-soft);font-size:16px;line-height:1.6;max-width:430px;margin:16px auto 0;font-weight:300}
+
+  .btn{font-family:'Fraunces',serif;font-size:17px;font-weight:400;letter-spacing:.01em;color:#1a1228;
+    background:linear-gradient(180deg,var(--amber),var(--coral));border:none;border-radius:40px;
+    padding:15px 38px;cursor:pointer;margin-top:30px;transition:.25s;box-shadow:0 8px 30px rgba(255,158,122,.28)}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 12px 36px rgba(255,158,122,.42)}
+  .btn:active{transform:translateY(0)}
+  .ghost{background:none;border:1px solid var(--line);color:var(--ink-soft);box-shadow:none;font-size:14px;padding:12px 26px}
+  .ghost:hover{border-color:rgba(255,255,255,.3);color:var(--ink);transform:translateY(-2px);box-shadow:none}
+  .link{background:none;border:none;color:var(--ink-faint);font-family:inherit;font-size:13px;cursor:pointer;margin-top:18px;text-decoration:underline;text-underline-offset:3px}
+  .link:hover{color:var(--ink-soft)}
+
+  /* ---- RESPIRACIÓN ---- */
+  .breath-word{font-family:'Fraunces',serif;font-weight:300;font-size:26px;color:var(--amber);
+    margin-top:22px;min-height:34px;letter-spacing:.06em;opacity:.95}
+  .breath-sub{color:var(--ink-faint);font-size:13px;margin-top:6px;letter-spacing:.12em;text-transform:uppercase}
+
+  /* ---- SESIÓN ---- */
+  .coord{font-size:11px;letter-spacing:.34em;color:var(--ink-faint);text-transform:uppercase;margin-bottom:14px}
+  .progress{display:flex;gap:6px;justify-content:center;margin-bottom:26px}
+  .pip{width:22px;height:3px;border-radius:3px;background:rgba(255,255,255,.12);transition:.4s}
+  .pip.done{background:var(--coral)}
+  .pip.now{background:var(--amber);box-shadow:0 0 10px var(--amber)}
+  .etapa-tag{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--aqua);margin-bottom:10px}
+  .pregunta{font-family:'Fraunces',serif;font-weight:300;font-size:clamp(20px,5.4vw,26px);line-height:1.4;
+    max-width:480px;margin:0 auto;color:var(--ink)}
+  .field{width:100%;max-width:480px;margin:28px auto 0}
+  textarea{width:100%;min-height:96px;resize:vertical;background:var(--panel);border:1px solid var(--line);
+    border-radius:16px;color:var(--ink);font-family:inherit;font-size:16px;line-height:1.55;padding:16px 18px;transition:.2s}
+  textarea::placeholder{color:var(--ink-faint)}
+  textarea:focus{outline:none;border-color:rgba(255,217,160,.5);background:rgba(255,255,255,.06)}
+  .row{display:flex;gap:12px;justify-content:center;align-items:center;margin-top:26px;flex-wrap:wrap}
+
+  /* lienzo */
+  .canvas-wrap{position:relative;width:100%;max-width:480px;margin:26px auto 0}
+  canvas{width:100%;height:280px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:18px;touch-action:none;cursor:crosshair;display:block}
+  .canvas-tools{display:flex;justify-content:space-between;align-items:center;margin-top:10px;color:var(--ink-faint);font-size:12px}
+  .clear-c{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-family:inherit;font-size:12px;text-decoration:underline;text-underline-offset:3px}
+  .clear-c:hover{color:var(--ink-soft)}
+
+  /* ---- REVELACIÓN ---- */
+  .reveal-tag{font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px}
+  .target-card{width:100%;max-width:440px;margin:0 auto;border-radius:22px;overflow:hidden;border:1px solid var(--line);
+    background:var(--panel);animation:revealIn 1s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes revealIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+  .target-card svg{display:block;width:100%;height:auto}
+  .target-name{font-family:'Fraunces',serif;font-weight:400;font-size:26px;padding:18px 20px 4px;color:var(--amber)}
+  .target-desc{color:var(--ink-soft);font-size:14px;line-height:1.55;padding:0 20px 20px}
+
+  .hits{max-width:440px;margin:24px auto 0;text-align:left}
+  .hits-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px}
+  .hits-head h3{font-family:'Fraunces',serif;font-weight:400;font-size:19px;color:var(--ink)}
+  .hits-score{font-size:13px;color:var(--aqua)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font-size:13px;padding:7px 13px;border-radius:30px;background:rgba(127,229,212,.12);
+    border:1px solid rgba(127,229,212,.35);color:var(--aqua)}
+  .no-hits{color:var(--ink-faint);font-size:14px;line-height:1.5}
+  .recap{max-width:440px;margin:26px auto 0;text-align:left;border-top:1px solid var(--line);padding-top:8px}
+  .recap details{border-bottom:1px solid var(--line)}
+  .recap summary{cursor:pointer;list-style:none;padding:13px 2px;font-size:14px;color:var(--ink-soft);display:flex;justify-content:space-between;align-items:center}
+  .recap summary::-webkit-details-marker{display:none}
+  .recap summary .et{color:var(--ink)}
+  .recap summary .car{color:var(--ink-faint);font-size:18px;transition:.2s}
+  .recap details[open] summary .car{transform:rotate(45deg)}
+  .recap .ans{padding:0 2px 14px;color:var(--ink-soft);font-size:14px;line-height:1.55;font-style:italic}
+  .recap .ans.empty{color:var(--ink-faint);font-style:normal}
+  .recap .ans img{max-width:160px;border-radius:10px;border:1px solid var(--line);margin-top:4px;display:block}
+
+  .note{color:var(--ink-faint);font-size:12px;line-height:1.5;max-width:430px;margin:30px auto 0;border-top:1px solid var(--line);padding-top:18px}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001s!important;animation-iteration-count:1!important}
+    .orb{animation:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">Visión <b>Remota</b></div>
+    <button class="voz-btn" id="voz" aria-pressed="false"><span class="voz-dot"></span><span id="vozlbl">Voz</span></button>
+  </div>
+  <div id="app"></div>
+</div>
+
+<script>
+/* ============ ESTRELLAS ============ */
+(function(){
+  const c=document.getElementById('stars'),x=c.getContext('2d');let w,h,st=[];
+  function r(){w=c.width=innerWidth;h=c.height=innerHeight;st=[];const n=Math.min(140,w*h/9000);
+    for(let i=0;i<n;i++)st.push({x:Math.random()*w,y:Math.random()*h,z:Math.random()*1.6+.3,p:Math.random()*Math.PI*2})}
+  function d(t){x.clearRect(0,0,w,h);for(const s of st){const a=.3+.5*Math.abs(Math.sin(s.p+t/1400));
+    x.beginPath();x.arc(s.x,s.y,s.z,0,7);x.fillStyle='rgba(255,240,220,'+a+')';x.fill()}requestAnimationFrame(d)}
+  r();requestAnimationFrame(d);addEventListener('resize',r);
+})();
+
+/* ============ BANCO DE OBJETIVOS (oculto hasta la revelación) ============ */
+const OBJETIVOS=[
+ {n:"Una cascada",d:"Una caída de agua entre rocas verdes. Movimiento constante, frescura, rugido del agua y bruma que asciende.",
+  desc:["agua","cae","caer","fresco","frio","verde","blanco","ruido","rugido","movimiento","vertical","humedad","liquido","rocas","natural","fluir"],
+  svg:`<svg viewBox="0 0 400 300"><defs><linearGradient id="w1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bdeaff"/><stop offset="1" stop-color="#5aa6c9"/></linearGradient></defs><rect width="400" height="300" fill="#2a4a4f"/><path d="M0 70 Q120 40 220 80 T400 60 V300 H0Z" fill="#1f6e57"/><rect x="150" y="60" width="100" height="200" fill="url(#w1)"/><path d="M150 60 q25 20 50 0 t50 0 v200 h-100z" fill="url(#w1)" opacity=".5"/><ellipse cx="200" cy="255" rx="80" ry="20" fill="#d6f3ff" opacity=".7"/><path d="M0 100 Q90 80 150 110 V300 H0Z" fill="#185c47"/><path d="M250 110 Q320 80 400 105 V300 H250Z" fill="#185c47"/></svg>`},
+ {n:"Un faro junto al mar",d:"Una torre blanca y roja sobre la costa. Su luz gira en la noche, viento salado y olas rompiendo abajo.",
+  desc:["faro","torre","alto","vertical","blanco","rojo","luz","mar","oceano","ola","olas","viento","sal","costa","noche","brillo","gira"],
+  svg:`<svg viewBox="0 0 400 300"><rect width="400" height="300" fill="#15314a"/><circle cx="320" cy="60" r="34" fill="#ffe9a8" opacity=".9"/><rect y="210" width="400" height="90" fill="#1e5b73"/><path d="M0 210 q100 -14 200 0 t200 0 v90 H0Z" fill="#2a7a93"/><polygon points="170,210 230,210 218,90 182,90" fill="#f3f0ea"/><rect x="170" y="90" width="60" height="20" fill="#cf4d3e"/><rect x="182" y="120" width="36" height="20" fill="#cf4d3e"/><rect x="182" y="160" width="36" height="20" fill="#cf4d3e"/><rect x="185" y="58" width="30" height="34" fill="#3a3550"/><polygon points="178,58 222,58 200,38" fill="#cf4d3e"/><polygon points="200,66 360,40 200,80" fill="#fff4cf" opacity=".55"/></svg>`},
+ {n:"Una pirámide en el desierto",d:"Una gran estructura triangular de piedra dorada bajo un sol intenso. Arena cálida, antigüedad, silencio.",
+  desc:["piramide","triangulo","triangular","arena","desierto","dorado","amarillo","sol","calor","calido","piedra","antiguo","grande","masivo","seco","punta"],
+  svg:`<svg viewBox="0 0 400 300"><defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd98a"/><stop offset="1" stop-color="#ffb66b"/></linearGradient></defs><rect width="400" height="300" fill="url(#sky)"/><circle cx="310" cy="70" r="30" fill="#fff3c4"/><rect y="220" width="400" height="80" fill="#e6a85e"/><polygon points="200,70 330,250 70,250" fill="#caa15a"/><polygon points="200,70 330,250 200,250" fill="#a9814a"/><polygon points="120,250 200,110 180,250" fill="#b88f50" opacity=".5"/></svg>`},
+ {n:"Un puente colgante",d:"Una larga estructura metálica suspendida por cables sobre el agua. Altura, líneas tensas, color rojizo o gris.",
+  desc:["puente","metal","cable","cables","alto","altura","largo","horizontal","gris","rojo","acero","agua","cruzar","estructura","tenso","suspendido"],
+  svg:`<svg viewBox="0 0 400 300"><rect width="400" height="300" fill="#9fb6c4"/><rect y="200" width="400" height="100" fill="#5d7e92"/><rect x="70" y="60" width="14" height="160" fill="#b5462f"/><rect x="316" y="60" width="14" height="160" fill="#b5462f"/><rect x="20" y="158" width="360" height="10" fill="#b5462f"/><path d="M20 165 Q200 270 380 165" fill="none" stroke="#8c3522" stroke-width="6"/><path d="M77 60 Q200 30 323 60" fill="none" stroke="#8c3522" stroke-width="4"/><g stroke="#a9402b" stroke-width="2"><line x1="120" y1="105" x2="120" y2="162"/><line x1="170" y1="92" x2="170" y2="162"/><line x1="230" y1="92" x2="230" y2="162"/><line x1="280" y1="105" x2="280" y2="162"/></g></svg>`},
+ {n:"Un bosque de pinos",d:"Hileras de árboles altos y verdes. Aire fresco, aroma a resina, suelo de tierra, quietud profunda.",
+  desc:["bosque","arbol","arboles","pino","verde","alto","vertical","frio","fresco","tierra","madera","resina","quieto","silencio","naturaleza","sombra","hojas"],
+  svg:`<svg viewBox="0 0 400 300"><rect width="400" height="300" fill="#bfd9c8"/><rect y="230" width="400" height="70" fill="#6b5740"/>${[40,110,185,260,330].map((x,i)=>`<g><rect x="${x-6}" y="150" width="12" height="90" fill="#5a4530"/><polygon points="${x},40 ${x-44},150 ${x+44},150" fill="#23613f"/><polygon points="${x},75 ${x-36},170 ${x+36},170" fill="#2f7a4e"/><polygon points="${x},110 ${x-28},195 ${x+28},195" fill="#3a8f5c"/></g>`).join('')}</svg>`},
+ {n:"Una fogata",d:"Llamas naranjas que crepitan en la noche. Calor, humo, chispas que suben y luz que danza.",
+  desc:["fuego","fogata","hoguera","llama","llamas","naranja","rojo","calor","calido","humo","chispa","crepitar","luz","danza","quemar","brasa","leña"],
+  svg:`<svg viewBox="0 0 400 300"><rect width="400" height="300" fill="#0e0a14"/><ellipse cx="200" cy="250" rx="120" ry="30" fill="#3a1f12"/><g transform="translate(200 200)"><path d="M0 30 C-50 -10 -25 -70 0 -120 C25 -70 50 -10 0 30Z" fill="#ff7a2e"/><path d="M0 28 C-30 0 -16 -48 0 -90 C16 -48 30 0 0 28Z" fill="#ffb43d"/><path d="M0 24 C-14 4 -8 -28 0 -56 C8 -28 14 4 0 24Z" fill="#ffe57a"/></g><g fill="#5a3a22"><rect x="150" y="240" width="100" height="12" rx="6"/><rect x="160" y="232" width="100" height="12" rx="6" transform="rotate(18 210 238)"/></g><g fill="#ffd089"><circle cx="160" cy="120" r="2"/><circle cx="250" cy="100" r="2"/><circle cx="210" cy="70" r="2.5"/><circle cx="185" cy="90" r="1.6"/></g></svg>`},
+ {n:"Un globo aerostático",d:"Una gran esfera de colores flotando en el cielo. Ligereza, altura, silencio suave y la canastilla colgando abajo.",
+  desc:["globo","esfera","redondo","colores","cielo","alto","altura","flota","flotar","ligero","aire","silencio","arriba","volar","grande","suave"],
+  svg:`<svg viewBox="0 0 400 300"><defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfe6ff"/><stop offset="1" stop-color="#7fc1ec"/></linearGradient></defs><rect width="400" height="300" fill="url(#g1)"/><g transform="translate(200 30)"><path d="M0 0 C70 0 95 80 60 150 H-60 C-95 80 -70 0 0 0Z" fill="#e0533f"/><path d="M-20 4 C20 30 20 110 0 152 V0Z" fill="#f5a623"/><path d="M-50 30 C-30 90 -20 130 -10 152 H-30 C-60 90 -60 50 -50 30Z" fill="#3b8ea5"/><path d="M50 30 C30 90 20 130 10 152 H30 C60 90 60 50 50 30Z" fill="#6cae53"/><line x1="-40" y1="150" x2="-12" y2="185" stroke="#7a5a3a" stroke-width="2"/><line x1="40" y1="150" x2="12" y2="185" stroke="#7a5a3a" stroke-width="2"/><rect x="-16" y="184" width="32" height="22" rx="3" fill="#7a5a3a"/></g></svg>`},
+ {n:"Un girasol",d:"Una flor grande y amarilla con centro oscuro, orientada al sol. Pétalos suaves, tallo verde, calidez.",
+  desc:["flor","girasol","amarillo","redondo","sol","petalos","suave","verde","tallo","organico","centro","brillante","calido","planta","circulo"],
+  svg:`<svg viewBox="0 0 400 300"><rect width="400" height="300" fill="#bfe0ff"/><rect y="240" width="400" height="60" fill="#7aa856"/><rect x="194" y="160" width="12" height="100" fill="#3f7a36"/><g transform="translate(200 130)">${Array.from({length:16}).map((_,i)=>`<ellipse cx="0" cy="-60" rx="14" ry="34" fill="#ffc92e" transform="rotate(${i*22.5})"/>`).join('')}<circle r="42" fill="#7a4a22"/><circle r="30" fill="#5e3818"/></g></svg>`},
+ {n:"Un velero en el mar",d:"Una embarcación blanca de velas desplegadas sobre agua azul. Viento, movimiento ligero, horizonte abierto.",
+  desc:["velero","barco","vela","velas","blanco","mar","oceano","agua","azul","viento","horizonte","navegar","ola","flota","movimiento","triangulo"],
+  svg:`<svg viewBox="0 0 400 300"><defs><linearGradient id="se" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cdeafd"/><stop offset="1" stop-color="#9fd3f0"/></linearGradient></defs><rect width="400" height="180" fill="url(#se)"/><rect y="180" width="400" height="120" fill="#3f86b8"/><g transform="translate(200 120)"><rect x="-2" y="-90" width="4" height="120" fill="#5a4632"/><polygon points="0,-86 0,20 -64,20" fill="#f4f1ea"/><polygon points="6,-70 6,20 60,20" fill="#e7e2d6"/><path d="M-72 30 H78 L60 56 H-54Z" fill="#7a4a2a"/></g><path d="M0 200 q60 10 120 0 t120 0 t140 0" fill="none" stroke="#cfe9f7" stroke-width="3" opacity=".6"/></svg>`},
+ {n:"Una catedral gótica",d:"Un templo de piedra muy alto con vitrales de colores. Espacios verticales, eco, frío, luz filtrada y solemnidad.",
+  desc:["catedral","iglesia","templo","piedra","alto","vertical","vitral","colores","arco","frio","eco","solemne","antiguo","gris","torre","sagrado"],
+  svg:`<svg viewBox="0 0 400 300"><rect width="400" height="300" fill="#2a2438"/><rect x="120" y="60" width="160" height="220" fill="#8d8597"/><polygon points="120,60 200,10 280,60" fill="#6f6880"/><rect x="92" y="120" width="34" height="160" fill="#7d7589"/><rect x="274" y="120" width="34" height="160" fill="#7d7589"/><polygon points="92,120 109,86 126,120" fill="#5f5972"/><polygon points="274,120 291,86 308,120" fill="#5f5972"/><g><path d="M200 110 a30 30 0 0 1 30 30 v60 h-60 v-60 a30 30 0 0 1 30 -30Z" fill="#3a3550"/><path d="M200 120 a20 20 0 0 1 20 20 v50 h-40 v-50 a20 20 0 0 1 20 -20Z" fill="#e05a86"/></g><circle cx="200" cy="92" r="16" fill="#5ab4d6"/><rect x="150" y="170" width="20" height="60" rx="10" fill="#f0c93a"/><rect x="230" y="170" width="20" height="60" rx="10" fill="#6cae53"/></svg>`},
+ {n:"Una luna llena",d:"Un disco plateado y redondo suspendido en la noche. Frío, silencio, brillo suave y cráteres apenas visibles.",
+  desc:["luna","redondo","circulo","plateado","plata","blanco","gris","noche","frio","silencio","brillo","disco","cielo","oscuro","crater","esfera"],
+  svg:`<svg viewBox="0 0 400 300"><rect width="400" height="300" fill="#0b0f1e"/><g fill="#fff" opacity=".7"><circle cx="60" cy="50" r="1.4"/><circle cx="340" cy="80" r="1.2"/><circle cx="120" cy="220" r="1.3"/><circle cx="300" cy="240" r="1.1"/><circle cx="80" cy="160" r="1"/><circle cx="360" cy="180" r="1.4"/></g><circle cx="200" cy="150" r="80" fill="#e9ecf2"/><g fill="#cbd0db"><circle cx="178" cy="128" r="14"/><circle cx="220" cy="160" r="20"/><circle cx="200" cy="190" r="9"/><circle cx="232" cy="120" r="7"/></g><circle cx="200" cy="150" r="80" fill="none" stroke="#fff" stroke-width="2" opacity=".25"/></svg>`},
+ {n:"Un tren a vapor",d:"Una locomotora negra avanzando sobre los rieles. Metal pesado, humo blanco, ruido rítmico y movimiento horizontal.",
+  desc:["tren","locomotora","metal","negro","humo","vapor","ruido","ritmo","movimiento","horizontal","rieles","hierro","pesado","rueda","maquina","chimenea"],
+  svg:`<svg viewBox="0 0 400 300"><rect width="400" height="300" fill="#cdd6dd"/><rect y="230" width="400" height="70" fill="#8a9098"/><g fill="#dfe6ea" opacity=".9"><circle cx="120" cy="60" r="26"/><circle cx="160" cy="46" r="20"/><circle cx="95" cy="50" r="18"/></g><rect x="60" y="150" width="220" height="80" rx="8" fill="#2e3338"/><rect x="280" y="120" width="70" height="110" rx="6" fill="#3a4047"/><rect x="110" y="100" width="34" height="60" fill="#1f2429"/><ellipse cx="127" cy="100" rx="22" ry="8" fill="#1f2429"/><rect x="300" y="140" width="40" height="34" fill="#7fc1ec"/><circle cx="110" cy="232" r="26" fill="#1b1f23"/><circle cx="200" cy="232" r="26" fill="#1b1f23"/><circle cx="310" cy="232" r="20" fill="#1b1f23"/><circle cx="110" cy="232" r="9" fill="#4a5057"/><circle cx="200" cy="232" r="9" fill="#4a5057"/></svg>`},
+];
+
+/* ============ ETAPAS ============ */
+const ETAPAS=[
+ {t:"Primera impresión",q:"¿Qué es lo primero que percibes? Sin pensarlo. La primera forma, sensación o energía que aparece.",ph:"Lo primero que siento es…"},
+ {t:"Texturas",q:"Lleva tu atención a las superficies. ¿Es rugoso o liso? ¿Duro o blando? ¿Algo se mueve o está quieto?",ph:"Las superficies se sienten…"},
+ {t:"Colores y luz",q:"¿Qué colores aparecen? ¿Hay luz, brillo, sombra? Deja que los tonos lleguen solos.",ph:"Aparecen tonos de…"},
+ {t:"Temperatura",q:"¿Sientes calor o frío? ¿Hay aire, humedad, sequedad? ¿Cómo está el ambiente?",ph:"La temperatura es…"},
+ {t:"Sonidos",q:"Escucha el lugar. ¿Hay silencio, sonidos, un ritmo? ¿Qué se oye aquí?",ph:"Escucho…"},
+ {t:"Aromas y sabores",q:"¿Llega algún olor o sabor, aunque sea sutil? Confía en lo que aparezca.",ph:"Percibo un aroma a…"},
+ {t:"Dimensión y forma",q:"¿Es grande o pequeño? ¿Alto, plano, redondo, angular? ¿Qué forma ocupa en el espacio?",ph:"En tamaño y forma es…"},
+ {t:"Emoción y energía",q:"¿Qué emoción o energía transmite? ¿Calmado, vibrante, antiguo, vivo?",ph:"La energía se siente…"},
+ {t:"Boceto",q:"Sin mirar, deja que tu mano dibuje lo que percibes. Líneas, formas, lo que surja.",tipo:"canvas"},
+ {t:"Síntesis",q:"Reúne todo lo percibido. Si tuvieras que nombrarlo… ¿qué crees que es el objetivo?",ph:"Creo que el objetivo es…"},
+];
+
+/* ============ ESTADO ============ */
+let estado={pantalla:'inicio',objetivo:null,etapa:0,respuestas:[],coord:'',boceto:null};
+let voz=false;
+const app=document.getElementById('app');
+const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+
+/* ---- voz (solo salida; el micrófono requiere alojar la app fuera del visor) ---- */
+const vozBtn=document.getElementById('voz');
+vozBtn.onclick=()=>{voz=!voz;vozBtn.classList.toggle('on',voz);vozBtn.setAttribute('aria-pressed',voz);
+  document.getElementById('vozlbl').textContent=voz?'Voz activa':'Voz';
+  if(!voz&&'speechSynthesis'in window)speechSynthesis.cancel();
+  if(voz)hablar('Voz activada.');};
+function hablar(txt){ if(!voz||!('speechSynthesis'in window))return;
+  speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang='es-ES';u.rate=.92;u.pitch=1;
+  const v=speechSynthesis.getVoices().find(x=>x.lang.startsWith('es'));if(v)u.voice=v;speechSynthesis.speak(u);}
+if('speechSynthesis'in window)speechSynthesis.onvoiceschanged=()=>{};
+
+/* ============ RENDER ============ */
+function render(){
+  const p=estado.pantalla;
+  if(p==='inicio')return inicio();
+  if(p==='respira')return respira();
+  if(p==='sesion')return sesion();
+  if(p==='revela')return revela();
+}
+
+function inicio(){
+  app.innerHTML=`<div class="stage">
+    <div class="orb-stage"><div class="halo"></div><div class="halo b"></div><div class="orb"></div></div>
+    <h1>Práctica de<br><em>visión remota</em></h1>
+    <p class="lede">Voy a elegir un objetivo que tú no puedes ver. Con los ojos cerrados, conectarás con él a través de tus sentidos internos. Al final, lo revelaremos juntos.</p>
+    <button class="btn" id="go">Comenzar</button>
+    <button class="link" id="comoinfo">¿Cómo funciona?</button>
+  </div>`;
+  document.getElementById('go').onclick=()=>{empezarSesion();};
+  document.getElementById('comoinfo').onclick=()=>{
+    app.querySelector('.lede').innerHTML="El objetivo se selecciona al azar y permanece oculto. Las preguntas son siempre las mismas para todos los objetivos, así que <b style='color:var(--ink)'>nada de lo que percibas puede ser filtrado o inducido</b>. Solo al final se revela la imagen y se comparan tus impresiones con ella.";
+    document.getElementById('comoinfo').remove();
+  };
+  hablar('Práctica de visión remota. Cuando quieras, comenzamos.');
+}
+
+function empezarSesion(){
+  estado.objetivo=Math.floor(Math.random()*OBJETIVOS.length);
+  estado.etapa=0;estado.respuestas=[];estado.boceto=null;
+  estado.coord=Array.from({length:2},()=>Math.floor(1000+Math.random()*9000)).join(' · ');
+  estado.pantalla='respira';render();
+}
+
+function respira(){
+  app.innerHTML=`<div class="stage">
+    <div class="orb-stage"><div class="halo"></div><div class="halo b"></div><div class="orb" id="borb"></div></div>
+    <div class="breath-word" id="bw">Cierra los ojos…</div>
+    <div class="breath-sub" id="bs">deja que la respiración se asiente</div>
+    <button class="link" id="skip">Estoy lista para empezar</button>
+  </div>`;
+  document.getElementById('skip').onclick=()=>{clearTimeout(t1);clearInterval(t2);irSesion();};
+  const orb=document.getElementById('borb'),bw=document.getElementById('bw'),bs=document.getElementById('bs');
+  orb.style.animation='breathe 9s ease-in-out infinite';
+  const ciclo=[['Inhala…','llena el pecho, sin prisa',4000],['Sostén…','un instante de quietud',2500],['Exhala…','suelta despacio',5500]];
+  let i=0,vueltas=0;
+  function paso(){
+    const[w,s,ms]=ciclo[i];bw.textContent=w;bs.textContent=s;hablar(w);
+    t1=setTimeout(()=>{i=(i+1)%3;if(i===0)vueltas++;if(vueltas>=2){bw.textContent='Cuando estés lista…';bs.textContent='conecta con el objetivo';hablar('Cuando estés lista, conecta con el objetivo.');return;}paso();},ms);
+  }
+  let t1,t2;paso();
+}
+
+function irSesion(){estado.pantalla='sesion';render();}
+
+function sesion(){
+  const e=ETAPAS[estado.etapa];
+  const pips=ETAPAS.map((_,i)=>`<span class="pip ${i<estado.etapa?'done':''} ${i===estado.etapa?'now':''}"></span>`).join('');
+  let campo='';
+  if(e.tipo==='canvas'){
+    campo=`<div class="canvas-wrap"><canvas id="cv"></canvas>
+      <div class="canvas-tools"><span>Dibuja con el dedo o el ratón</span><button class="clear-c" id="clr">Borrar</button></div></div>`;
+  }else{
+    campo=`<div class="field"><textarea id="ta" placeholder="${e.ph}">${estado.respuestas[estado.etapa]||''}</textarea></div>`;
+  }
+  app.innerHTML=`<div class="stage">
+    <div class="coord">Objetivo ${estado.coord}</div>
+    <div class="progress">${pips}</div>
+    <div class="orb-stage" style="width:150px;height:150px;margin:0 auto 18px"><div class="orb speak" id="orb" style="width:96px;height:96px"></div></div>
+    <div class="etapa-tag">Etapa ${estado.etapa+1} / ${ETAPAS.length} · ${e.t}</div>
+    <div class="pregunta">${e.q}</div>
+    ${campo}
+    <div class="row">
+      ${estado.etapa>0?'<button class="btn ghost" id="prev">Atrás</button>':''}
+      <button class="btn" id="next">${estado.etapa===ETAPAS.length-1?'Revelar objetivo':'Siguiente'}</button>
+    </div>
+  </div>`;
+
+  const orb=document.getElementById('orb');
+  setTimeout(()=>orb.classList.remove('speak'),3000);
+  hablar(e.q);
+
+  if(e.tipo==='canvas')initCanvas();
+
+  document.getElementById('next').onclick=()=>{
+    if(e.tipo==='canvas'){const cv=document.getElementById('cv');estado.boceto=cv.toDataURL();}
+    else{estado.respuestas[estado.etapa]=document.getElementById('ta').value.trim();}
+    if(estado.etapa===ETAPAS.length-1){estado.pantalla='revela';render();}
+    else{estado.etapa++;render();}
+  };
+  const prev=document.getElementById('prev');
+  if(prev)prev.onclick=()=>{
+    if(e.tipo==='canvas'){const cv=document.getElementById('cv');estado.boceto=cv.toDataURL();}
+    else{estado.respuestas[estado.etapa]=document.getElementById('ta').value.trim();}
+    estado.etapa--;render();
+  };
+}
+
+function initCanvas(){
+  const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+  const dpr=window.devicePixelRatio||1;const r=cv.getBoundingClientRect();
+  cv.width=r.width*dpr;cv.height=r.height*dpr;ctx.scale(dpr,dpr);
+  ctx.strokeStyle='#FFD9A0';ctx.lineWidth=2.5;ctx.lineCap='round';ctx.lineJoin='round';
+  if(estado.boceto){const img=new Image();img.onload=()=>ctx.drawImage(img,0,0,r.width,r.height);img.src=estado.boceto;}
+  let draw=false,lx,ly;
+  const pos=ev=>{const b=cv.getBoundingClientRect();const t=ev.touches?ev.touches[0]:ev;return[t.clientX-b.left,t.clientY-b.top];};
+  const start=ev=>{ev.preventDefault();draw=true;[lx,ly]=pos(ev);};
+  const move=ev=>{if(!draw)return;ev.preventDefault();const[x,y]=pos(ev);ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(x,y);ctx.stroke();[lx,ly]=[x,y];};
+  const end=()=>draw=false;
+  cv.addEventListener('mousedown',start);cv.addEventListener('mousemove',move);addEventListener('mouseup',end);
+  cv.addEventListener('touchstart',start,{passive:false});cv.addEventListener('touchmove',move,{passive:false});cv.addEventListener('touchend',end);
+  document.getElementById('clr').onclick=()=>{ctx.clearRect(0,0,cv.width,cv.height);estado.boceto=null;};
+}
+
+function revela(){
+  const o=OBJETIVOS[estado.objetivo];
+  const texto=norm(estado.respuestas.join(' '));
+  const hits=[...new Set(o.desc.filter(w=>texto.includes(norm(w))))];
+  let scoreMsg;
+  if(hits.length===0)scoreMsg="Sin coincidencias léxicas directas — confía igual: la percepción real no siempre cabe en palabras.";
+  else if(hits.length<=2)scoreMsg="Algunas señales claras. Buen comienzo de calibración.";
+  else if(hits.length<=5)scoreMsg="Varias coincidencias sólidas. La conexión fue real.";
+  else scoreMsg="Excelente sintonía. Muchos datos perceptivos acertaron el objetivo.";
+
+  const recap=ETAPAS.map((e,i)=>{
+    if(e.tipo==='canvas'){
+      const img=estado.boceto?`<img src="${estado.boceto}" alt="boceto">`:'<span class="ans empty">Sin boceto</span>';
+      return `<details><summary><span class="et">${e.t}</span><span class="car">+</span></summary><div class="ans">${img}</div></details>`;
+    }
+    const a=estado.respuestas[i];
+    return `<details><summary><span class="et">${e.t}</span><span class="car">+</span></summary><div class="ans ${a?'':'empty'}">${a||'Sin registrar'}</div></details>`;
+  }).join('');
+
+  app.innerHTML=`<div class="stage" style="justify-content:flex-start;padding-top:8px">
+    <div class="reveal-tag">El objetivo era</div>
+    <div class="target-card">${o.svg}<div class="target-name">${o.n}</div><div class="target-desc">${o.d}</div></div>
+    <div class="hits">
+      <div class="hits-head"><h3>Coincidencias</h3><span class="hits-score">${hits.length} señal${hits.length===1?'':'es'}</span></div>
+      ${hits.length?`<div class="chips">${hits.map(h=>`<span class="chip">${h}</span>`).join('')}</div>`:''}
+      <p class="no-hits" style="margin-top:12px">${scoreMsg}</p>
+    </div>
+    <div class="recap">${recap}</div>
+    <p class="note">Las coincidencias se calculan <b>solo ahora</b>, comparando tus palabras con los descriptores del objetivo. Durante la sesión nada conocía la imagen: por eso no hay forma de filtrar pistas.</p>
+    <div class="row"><button class="btn" id="again">Nueva práctica</button><button class="btn ghost" id="home">Inicio</button></div>
+  </div>`;
+  hablar('El objetivo era '+o.n+'. '+scoreMsg);
+  document.getElementById('again').onclick=()=>empezarSesion();
+  document.getElementById('home').onclick=()=>{estado.pantalla='inicio';render();};
+}
+
+render();
+</script>
+</body>
+</html>
